@@ -1,4 +1,4 @@
-# menu.py
+
 import arcade
 import guardado
 from constantes import *
@@ -33,7 +33,7 @@ class Menu(arcade.View):
         self.txt_instruccion = arcade.Text("↑↓ para navegar   ENTER para seleccionar",
                                             cx, 40, (150, 150, 150), 12, anchor_x="center")
 
-        # subtextos de controles y dificultad
+        
         self.txt_controles_val = arcade.Text("", cx, ALTO_VENTANA - 300 - 1 * 60 - 28,
                                               (52, 152, 219), 12, anchor_x="center")
         self.txt_dificultad_val = arcade.Text("", cx, ALTO_VENTANA - 300 - 2 * 60 - 28,

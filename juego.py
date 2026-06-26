@@ -1,4 +1,4 @@
-# juego.py
+
 import arcade
 import random
 import guardado
@@ -55,16 +55,16 @@ class Juego(arcade.View):
         self.tiene_llave     = False
         self.animacion_portal = 0.0
 
-        # generar mapa
+        
         datos_nivel = nivel_mod.generar_nivel(self.numero_nivel, self.dificultad)
         self.paredes   = datos_nivel["paredes"]
         self.portal    = datos_nivel["portal"]
         self.pos_llave = datos_nivel["pos_llave"]
 
-        # pasos minimos para puntaje
+        
         self.pasos_minimos = nivel_mod.pasos_minimos(POS_INICIO, self.portal, self.paredes)
 
-        # cargar assets
+        
         self._cargar_assets()
         self._crear_textos()
 
@@ -240,14 +240,14 @@ class Juego(arcade.View):
         self.caminando = True
         arcade.play_sound(self.snd_mover)
 
-        # limite de pasos en medio y dificil
+    
         if self.dificultad in ("medio", "dificil") and self.pasos_minimos:
             limite = self.pasos_minimos * 2
             if self.pasos >= limite:
                 self.perdido = True
                 return
 
-        # llego al portal
+    
         if (self.col, self.fila) == self.portal:
             if self.dificultad == "dificil" and self.pos_llave and not self.tiene_llave:
                 arcade.play_sound(self.snd_no_mover)

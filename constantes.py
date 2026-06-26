@@ -1,4 +1,4 @@
-# constantes.py
+
 COLUMNAS = 14
 FILAS = 10
 TAM_CELDA = 60

@@ -1,13 +1,9 @@
-# nivel.py
+
 import random
 from constantes import *
 
 def generar_nivel(numero_nivel, dificultad):
-    """
-    Genera un mapa valido para el nivel dado.
-    Garantiza siempre un camino posible desde el inicio hasta el portal.
-    Retorna un diccionario con paredes, pos_portal y pos_llave.
-    """
+
     inicio  = POS_INICIO
     portal  = POS_MERENDERO
 
@@ -34,7 +30,7 @@ def _calcular_paredes(numero_nivel, dificultad):
         base += 4
     elif dificultad == "dificil":
         base += 8
-    # que no sea mas del 30% de la grilla
+    
     return min(base, int(COLUMNAS * FILAS * 0.30))
 
 def _generar_paredes(cantidad, inicio, portal):
@@ -47,7 +43,7 @@ def _generar_paredes(cantidad, inicio, portal):
     return set(random.sample(celdas_libres, cantidad))
 
 def _hay_camino(inicio, destino, paredes):
-    """BFS para verificar que existe un camino entre inicio y destino."""
+    
     visitados = {inicio}
     cola = [inicio]
     while cola:
@@ -66,10 +62,7 @@ def _hay_camino(inicio, destino, paredes):
     return False
 
 def _generar_llave(numero_nivel, paredes, inicio, portal):
-    """
-    Ubica la llave en una celda valida.
-    A mayor nivel, mas lejos del inicio.
-    """
+
     candidatas = [
         (col, fila)
         for col in range(COLUMNAS)
@@ -78,13 +71,12 @@ def _generar_llave(numero_nivel, paredes, inicio, portal):
         and (col, fila) != inicio
         and (col, fila) != portal
     ]
-    # ordenar por distancia manhattan al inicio, tomar las mas lejanas segun nivel
+
     candidatas.sort(key=lambda c: abs(c[0] - inicio[0]) + abs(c[1] - inicio[1]), reverse=True)
     tope = max(1, len(candidatas) // (11 - numero_nivel))
     return random.choice(candidatas[:tope])
 
 def pasos_minimos(inicio, destino, paredes):
-    """BFS que retorna la cantidad minima de pasos para llegar al destino."""
     visitados = {inicio: 0}
     cola = [(inicio, 0)]
     while cola:

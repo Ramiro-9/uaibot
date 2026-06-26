@@ -1,4 +1,4 @@
-# sprites.py
+
 import os
 import arcade
 

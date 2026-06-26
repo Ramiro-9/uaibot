@@ -1,4 +1,4 @@
-# main.py
+
 import arcade
 from constantes import *
 from menu import Menu
