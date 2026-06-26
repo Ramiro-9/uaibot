@@ -40,7 +40,7 @@ Todos los tiles: `60x60` px
 
 ### Sonidos existentes
 
-Estos ya están en `assets/` y no hace falta tocarlos:
+Estos ya están en `assets/` pero los podemos cambiar
 
 | Archivo | Descripción |
 |---------|-------------|
@@ -58,7 +58,7 @@ Estos ya están en `assets/` y no hace falta tocarlos:
 
 ### Flujo de trabajo
 
-Cuando termines un sprite subilo así:
+si queres subir cambios, lo haces asi:
 
 ```bash
 git add assets/
@@ -66,4 +66,4 @@ git commit -m "agrego sprite cesped"
 git push
 ```
 
-Gonzalo hace `git pull` para recibir los cambios.
+
