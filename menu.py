@@ -1,4 +1,4 @@
-
+# menu.py
 import arcade
 import guardado
 from constantes import *
@@ -11,7 +11,7 @@ class Menu(arcade.View):
         super().__init__()
         self.datos = guardado.cargar()
         self.opcion_seleccionada = 0
-        self.submenu = None  # None, "controles" o "dificultad"
+        self.submenu = None
         self.dificultad = self.datos.get("dificultad", "facil")
         self._crear_textos()
 
@@ -32,8 +32,6 @@ class Menu(arcade.View):
         ]
         self.txt_instruccion = arcade.Text("↑↓ para navegar   ENTER para seleccionar",
                                             cx, 40, (150, 150, 150), 12, anchor_x="center")
-
-        
         self.txt_controles_val = arcade.Text("", cx, ALTO_VENTANA - 300 - 1 * 60 - 28,
                                               (52, 152, 219), 12, anchor_x="center")
         self.txt_dificultad_val = arcade.Text("", cx, ALTO_VENTANA - 300 - 2 * 60 - 28,
@@ -67,7 +65,7 @@ class Menu(arcade.View):
                 self.submenu = "dificultad"
 
     def _manejar_controles(self, symbol):
-        if symbol == arcade.key.LEFT or symbol == arcade.key.RIGHT:
+        if symbol in (arcade.key.LEFT, arcade.key.RIGHT):
             actual = self.datos.get("controles", "flechas")
             nuevo = "wasd" if actual == "flechas" else "flechas"
             guardado.actualizar_controles(nuevo)
@@ -106,17 +104,14 @@ class Menu(arcade.View):
         self.txt_subtitulo.draw()
         self.txt_highscore.draw()
         self.txt_instruccion.draw()
-
         for i, txt in enumerate(self.txt_opciones):
             if i == self.opcion_seleccionada and self.submenu is None:
                 txt.color = arcade.color.GOLD
             else:
                 txt.color = arcade.color.WHITE
             txt.draw()
-
         self.txt_controles_val.draw()
         self.txt_dificultad_val.draw()
-
         if self.submenu == "controles":
             self._dibujar_submenu("Controles", "← → para cambiar entre flechas y WASD\nESC para volver")
         elif self.submenu == "dificultad":

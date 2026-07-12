@@ -1,10 +1,10 @@
-
+# juego.py
 import arcade
 import random
 import guardado
 import nivel as nivel_mod
-from constantes import *
 import sprites as spr
+from constantes import *
 
 TOTAL_FRAMES = 6
 FRAME_WIDTH  = 128
@@ -39,34 +39,42 @@ class Juego(arcade.View):
         super().__init__()
         self.dificultad = dificultad
         self.controles  = controles
+        self._cargar_assets()
 
     def setup(self, numero_nivel=1, puntaje_total=0):
-        self.direcciones = {}
         self.numero_nivel  = numero_nivel
         self.puntaje_total = puntaje_total
-        self.col, self.fila = POS_INICIO
-        self.sendero  = {POS_INICIO}
-        self.pasos    = 0
-        self.ganado   = False
-        self.perdido  = False
-        self.particulas      = []
-        self.timer_estado    = 0
-        self.caminando       = False
-        self.tiene_llave     = False
+        self.pasos         = 0
+        self.ganado        = False
+        self.perdido       = False
+        self.particulas    = []
+        self.timer_estado  = 0
+        self.caminando     = False
+        self.tiene_llave   = False
         self.animacion_portal = 0.0
 
-        
-        datos_nivel = nivel_mod.generar_nivel(self.numero_nivel, self.dificultad)
-        self.paredes   = datos_nivel["paredes"]
-        self.portal    = datos_nivel["portal"]
-        self.pos_llave = datos_nivel["pos_llave"]
+        datos = nivel_mod.generar_nivel(self.numero_nivel, self.dificultad)
+        self.paredes       = datos["paredes"]
+        self.portal        = datos["portal"]
+        self.pos_llave     = datos["pos_llave"]
+        self.hielo         = datos["hielo"]
+        self.teleportes    = datos["teleportes"]
+        self.puertas_llave = list(datos["puertas_llave"])
+        self.puertas_placa = list(datos["puertas_placa"])
+        self.placas        = list(datos["placas"])
+        self.mapa_ancho    = datos["ancho"]
+        self.mapa_alto     = datos["alto"]
 
-        
+        self.col, self.fila = POS_INICIO
+        self.sendero     = {POS_INICIO}
+        self.direcciones = {}
+
         self.pasos_minimos = nivel_mod.pasos_minimos(POS_INICIO, self.portal, self.paredes)
-
-        
-        self._cargar_assets()
         self._crear_textos()
+
+        self.px_x, self.px_y = self._celda_a_px(*POS_INICIO)
+        self.moviendose = False
+        self.velocidad_movimiento = 8  # pixeles por frame
 
     def _cargar_assets(self):
         sheet_idle = arcade.load_spritesheet("assets/Idle.png")
@@ -84,15 +92,14 @@ class Juego(arcade.View):
                     i * FRAME_WIDTH, i * FRAME_WIDTH + FRAME_WIDTH, 0, FRAME_HEIGHT))
             )
 
-        self.frame_actual   = 0
-        self.timer_frame    = 0
+        self.frame_actual    = 0
+        self.timer_frame     = 0
         self.velocidad_frame = 8
 
         self.img_merendero = arcade.load_texture("assets/merendero.png")
-
-        self.snd_mover    = arcade.load_sound("assets/Moverse.wav")
-        self.snd_no_mover = arcade.load_sound("assets/NoMoverse.wav")
-        self.snd_victoria = arcade.load_sound("assets/CompletedLevel.wav")
+        self.snd_mover     = arcade.load_sound("assets/Moverse.wav")
+        self.snd_no_mover  = arcade.load_sound("assets/NoMoverse.wav")
+        self.snd_victoria  = arcade.load_sound("assets/CompletedLevel.wav")
 
     def _crear_textos(self):
         px = ANCHO_JUEGO
@@ -108,7 +115,6 @@ class Juego(arcade.View):
                                       arcade.color.WHITE, 13, anchor_x="center", bold=True)
         self.txt_dificultad = arcade.Text(f"Dificultad: {self.dificultad}", cx, ALTO_VENTANA - 103,
                                            (150, 150, 150), 11, anchor_x="center")
-
         self.txt_mision_titulo = arcade.Text("MISION", px + 16, ALTO_VENTANA - 128,
                                               arcade.color.GOLD, 11, bold=True)
         mision = "Lleva las donaciones\nal merendero." if es_ultimo else "Llega al portal\npara avanzar."
@@ -116,7 +122,6 @@ class Juego(arcade.View):
             mision += "\nRecoge la llave\nprimero con E."
         self.txt_mision = arcade.Text(mision, px + 16, ALTO_VENTANA - 148,
                                        (200, 200, 200), 10, multiline=True, width=pw - 32)
-
         self.txt_pasos_titulo = arcade.Text("PASOS", px + 16, ALTO_VENTANA - 265,
                                              arcade.color.GOLD, 11, bold=True)
         self.txt_pasos = arcade.Text("0", px + 16, ALTO_VENTANA - 290,
@@ -131,15 +136,12 @@ class Juego(arcade.View):
                                            (220, 100, 100), 10)
         else:
             self.txt_limite = arcade.Text("", px + 16, ALTO_VENTANA - 334, (0, 0, 0), 10)
-
         self.txt_puntaje_titulo = arcade.Text("PUNTAJE", px + 16, ALTO_VENTANA - 364,
                                                arcade.color.GOLD, 11, bold=True)
         self.txt_puntaje = arcade.Text(str(self.puntaje_total), px + 16, ALTO_VENTANA - 390,
                                         (200, 200, 200), 22, bold=True)
-
         self.txt_llave = arcade.Text("LLAVE: NO", px + 16, ALTO_VENTANA - 428,
                                       (200, 100, 100), 11, bold=True)
-
         self.txt_controles_titulo = arcade.Text("CONTROLES", px + 16, ALTO_VENTANA - 468,
                                                  arcade.color.GOLD, 11, bold=True)
         controles_texto = "WASD: mover\nR: reiniciar nivel\nN: reiniciar juego\nESC: menu" \
@@ -147,10 +149,8 @@ class Juego(arcade.View):
                           "Flechas: mover\nR: reiniciar nivel\nN: reiniciar juego\nESC: menu"
         self.txt_controles = arcade.Text(controles_texto, px + 16, ALTO_VENTANA - 540,
                                           (200, 200, 200), 10, multiline=True, width=pw - 32)
-
         self.txt_reiniciar = arcade.Text("R=nivel  N=inicio  ESC=menu",
                                           cx, 16, (120, 120, 120), 9, anchor_x="center")
-
         self.txt_victoria = arcade.Text(
             "¡NIVEL COMPLETADO!" if self.numero_nivel < 10 else "¡MISION CUMPLIDA!",
             ANCHO_JUEGO // 2, ALTO_VENTANA // 2 + 30,
@@ -164,25 +164,18 @@ class Juego(arcade.View):
         self.txt_perdido_sub = arcade.Text("R=Reiniciar nivel  N=Desde el inicio",
                                             ANCHO_JUEGO // 2, ALTO_VENTANA // 2 - 20,
                                             (200, 200, 200), 14, anchor_x="center", anchor_y="center")
+
     def _tecla_arriba(self, symbol):
-        if self.controles == "wasd":
-            return symbol == arcade.key.W
-        return symbol == arcade.key.UP
+        return symbol == (arcade.key.W if self.controles == "wasd" else arcade.key.UP)
 
     def _tecla_abajo(self, symbol):
-        if self.controles == "wasd":
-            return symbol == arcade.key.S
-        return symbol == arcade.key.DOWN
+        return symbol == (arcade.key.S if self.controles == "wasd" else arcade.key.DOWN)
 
     def _tecla_izquierda(self, symbol):
-        if self.controles == "wasd":
-            return symbol == arcade.key.A
-        return symbol == arcade.key.LEFT
+        return symbol == (arcade.key.A if self.controles == "wasd" else arcade.key.LEFT)
 
     def _tecla_derecha(self, symbol):
-        if self.controles == "wasd":
-            return symbol == arcade.key.D
-        return symbol == arcade.key.RIGHT
+        return symbol == (arcade.key.D if self.controles == "wasd" else arcade.key.RIGHT)
 
     def on_key_press(self, symbol, modifiers):
         if self._tecla_arriba(symbol):
@@ -214,6 +207,8 @@ class Juego(arcade.View):
             self.tiene_llave = True
             self.txt_llave.value = "LLAVE: SI"
             self.txt_llave.color = (100, 200, 100)
+            for pos in self.puertas_llave:
+                self.paredes.discard(pos)
 
     def _intentar_mover(self, dc, df):
         if self.ganado or self.perdido:
@@ -222,7 +217,7 @@ class Juego(arcade.View):
         nc = self.col + dc
         nf = self.fila + df
 
-        if not (0 <= nc < COLUMNAS and 0 <= nf < FILAS):
+        if not (0 <= nc < self.mapa_ancho and 0 <= nf < self.mapa_alto):
             arcade.play_sound(self.snd_no_mover)
             return
         if (nc, nf) in self.paredes:
@@ -240,14 +235,38 @@ class Juego(arcade.View):
         self.caminando = True
         arcade.play_sound(self.snd_mover)
 
-    
+        if (self.col, self.fila) in self.hielo:
+            nc2 = self.col + dc
+            nf2 = self.fila + df
+            if (0 <= nc2 < self.mapa_ancho and 0 <= nf2 < self.mapa_alto
+                    and (nc2, nf2) not in self.paredes
+                    and (nc2, nf2) not in self.sendero):
+                self.col, self.fila = nc2, nf2
+                self.direcciones[(nc2, nf2)] = (dc, df)
+                self.sendero.add((nc2, nf2))
+                self.pasos += 1
+                self.txt_pasos.value = str(self.pasos)
+
+        if (self.col, self.fila) in self.teleportes:
+            destino = self.teleportes[(self.col, self.fila)]
+            if destino not in self.sendero:
+                self.col, self.fila = destino
+                self.sendero.add(destino)
+                self.pasos += 1
+                self.txt_pasos.value = str(self.pasos)
+
+        for placa in self.placas:
+            if (self.col, self.fila) == placa["pos"]:
+                for puerta in self.puertas_placa:
+                    if puerta["id"] == placa["id"] and not puerta["abierta"]:
+                        puerta["abierta"] = True
+                        self.paredes.discard(puerta["pos"])
+
         if self.dificultad in ("medio", "dificil") and self.pasos_minimos:
-            limite = self.pasos_minimos * 2
-            if self.pasos >= limite:
+            if self.pasos >= self.pasos_minimos * 2:
                 self.perdido = True
                 return
 
-    
         if (self.col, self.fila) == self.portal:
             if self.dificultad == "dificil" and self.pos_llave and not self.tiene_llave:
                 arcade.play_sound(self.snd_no_mover)
@@ -282,6 +301,20 @@ class Juego(arcade.View):
         if self.timer_frame >= self.velocidad_frame:
             self.timer_frame = 0
             self.frame_actual = (self.frame_actual + 1) % TOTAL_FRAMES
+        # mover suavemente hacia la celda destino
+        dest_x, dest_y = self._celda_a_px(self.col, self.fila)
+        dx = dest_x - self.px_x
+        dy = dest_y - self.px_y
+        distancia = (dx**2 + dy**2) ** 0.5
+
+        if distancia > self.velocidad_movimiento:
+            self.px_x += dx / distancia * self.velocidad_movimiento
+            self.px_y += dy / distancia * self.velocidad_movimiento
+            self.moviendose = True
+        else:
+            self.px_x = dest_x
+            self.px_y = dest_y
+            self.moviendose = False
 
         if self.ganado:
             self.timer_estado += 1
@@ -291,7 +324,6 @@ class Juego(arcade.View):
             if self.timer_estado % 30 == 0:
                 for _ in range(30):
                     self.particulas.append(Particula())
-            # pasar al siguiente nivel automaticamente
             if self.timer_estado == 180:
                 if self.numero_nivel < 10:
                     self.setup(self.numero_nivel + 1, self.puntaje_total)
@@ -304,6 +336,9 @@ class Juego(arcade.View):
         self._dibujar_grilla()
         self._dibujar_sendero()
         self._dibujar_paredes()
+        self._dibujar_hielo()
+        self._dibujar_teleportes()
+        self._dibujar_placas()
         self._dibujar_portal()
         self._dibujar_llave()
         self._dibujar_uaibot()
@@ -319,15 +354,14 @@ class Juego(arcade.View):
         return x, y
 
     def _dibujar_grilla(self):
-        for fila in range(FILAS):
-            for col in range(COLUMNAS):
+        for fila in range(self.mapa_alto):
+            for col in range(self.mapa_ancho):
                 color = (44, 62, 80) if (col + fila) % 2 == 0 else (39, 55, 70)
-                if not spr.dibujar_celda(SPRITE_CESPED, col, fila, TAM_CELDA):
-                    arcade.draw_lrbt_rectangle_filled(
-                        col * TAM_CELDA + 1, col * TAM_CELDA + TAM_CELDA - 1,
-                        fila * TAM_CELDA + 1, fila * TAM_CELDA + TAM_CELDA - 1,
-                        color
-                    )
+                arcade.draw_lrbt_rectangle_filled(
+                    col * TAM_CELDA + 1, col * TAM_CELDA + TAM_CELDA - 1,
+                    fila * TAM_CELDA + 1, fila * TAM_CELDA + TAM_CELDA - 1,
+                    color
+                )
 
     def _dibujar_sendero(self):
         for (col, fila) in self.sendero:
@@ -342,7 +376,6 @@ class Juego(arcade.View):
                 path = SPRITE_HUELLA_IZQUIERDA
             else:
                 path = SPRITE_HUELLA_DERECHA
-
             if not spr.dibujar_celda(path, col, fila, TAM_CELDA):
                 arcade.draw_lrbt_rectangle_filled(
                     col * TAM_CELDA + 1, col * TAM_CELDA + TAM_CELDA - 1,
@@ -359,14 +392,39 @@ class Juego(arcade.View):
                     (101, 67, 33)
                 )
 
+    def _dibujar_hielo(self):
+        for (col, fila) in self.hielo:
+            if not spr.dibujar_celda(SPRITE_HIELO, col, fila, TAM_CELDA):
+                arcade.draw_lrbt_rectangle_filled(
+                    col * TAM_CELDA + 1, col * TAM_CELDA + TAM_CELDA - 1,
+                    fila * TAM_CELDA + 1, fila * TAM_CELDA + TAM_CELDA - 1,
+                    (135, 206, 235)
+                )
+
+    def _dibujar_teleportes(self):
+        for (col, fila) in self.teleportes:
+            if not spr.dibujar_celda(SPRITE_TELEPORTE, col, fila, TAM_CELDA):
+                arcade.draw_lrbt_rectangle_filled(
+                    col * TAM_CELDA + 1, col * TAM_CELDA + TAM_CELDA - 1,
+                    fila * TAM_CELDA + 1, fila * TAM_CELDA + TAM_CELDA - 1,
+                    (130, 50, 220)
+                )
+
+    def _dibujar_placas(self):
+        for placa in self.placas:
+            col, fila = placa["pos"]
+            if not spr.dibujar_celda(SPRITE_PLACA, col, fila, TAM_CELDA):
+                arcade.draw_lrbt_rectangle_filled(
+                    col * TAM_CELDA + 4, col * TAM_CELDA + TAM_CELDA - 4,
+                    fila * TAM_CELDA + 4, fila * TAM_CELDA + TAM_CELDA - 4,
+                    (200, 160, 0)
+                )
+
     def _dibujar_portal(self):
         import math
         col, fila = self.portal
         x, y = self._celda_a_px(col, fila)
         es_ultimo = self.numero_nivel == 10
-
-        pulso = int(30 + 20 * math.sin(self.animacion_portal))
-        path = SPRITE_PORTAL if not es_ultimo else None
 
         if es_ultimo:
             arcade.draw_lrbt_rectangle_filled(
@@ -376,19 +434,25 @@ class Juego(arcade.View):
             )
             arcade.draw_texture_rect(self.img_merendero, arcade.XYWH(x, y, TAM_CELDA, TAM_CELDA))
         else:
-            if not spr.dibujar_celda(path, col, fila, TAM_CELDA):
-                arcade.draw_lrbt_rectangle_filled(
-                    col * TAM_CELDA + 1, col * TAM_CELDA + TAM_CELDA - 1,
-                    fila * TAM_CELDA + 1, fila * TAM_CELDA + TAM_CELDA - 1,
-                    (130, 50, 220, 180)
-                )
-                arcade.draw_lrbt_rectangle_outline(
-                    col * TAM_CELDA + 1, col * TAM_CELDA + TAM_CELDA - 1,
-                    fila * TAM_CELDA + 1, fila * TAM_CELDA + TAM_CELDA - 1,
-                    (180, 100, 255), 3
-                )
-                arcade.Text("▶", x, y, (255, 255, 255), 20,
-                            anchor_x="center", anchor_y="center").draw()
+            # pulso basado en el timer de animacion
+            pulso = abs(math.sin(self.animacion_portal))
+            r = int(100 + 80 * pulso)
+            g = int(30 + 20 * pulso)
+            b = int(200 + 55 * pulso)
+            margen = int(4 + 4 * pulso)
+
+            arcade.draw_lrbt_rectangle_filled(
+                col * TAM_CELDA + 1, col * TAM_CELDA + TAM_CELDA - 1,
+                fila * TAM_CELDA + 1, fila * TAM_CELDA + TAM_CELDA - 1,
+                (r, g, b, 200)
+            )
+            arcade.draw_lrbt_rectangle_outline(
+                col * TAM_CELDA + margen, col * TAM_CELDA + TAM_CELDA - margen,
+                fila * TAM_CELDA + margen, fila * TAM_CELDA + TAM_CELDA - margen,
+                (200, 150, 255), 2
+            )
+            arcade.Text("▶", x, y, (255, 255, 255), 20,
+                        anchor_x="center", anchor_y="center").draw()
 
     def _dibujar_llave(self):
         if self.pos_llave and not self.tiene_llave:
@@ -428,6 +492,7 @@ class Juego(arcade.View):
         self.txt_limite.draw()
         self.txt_puntaje_titulo.draw()
         self.txt_puntaje.draw()
+        self.txt_controles_titulo.draw()
         self.txt_controles.draw()
         self.txt_reiniciar.draw()
         if self.dificultad == "dificil" and self.pos_llave:

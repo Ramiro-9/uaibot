@@ -1,4 +1,3 @@
-
 COLUMNAS = 14
 FILAS = 10
 TAM_CELDA = 60
@@ -24,3 +23,6 @@ SPRITE_HUELLA_ARRIBA    = "assets/huella_arriba.png"
 SPRITE_HUELLA_ABAJO     = "assets/huella_abajo.png"
 SPRITE_HUELLA_IZQUIERDA = "assets/huella_izquierda.png"
 SPRITE_HUELLA_DERECHA   = "assets/huella_derecha.png"
+SPRITE_HIELO     = "assets/hielo.png"
+SPRITE_TELEPORTE = "assets/teleporte.png"
+SPRITE_PLACA     = "assets/placa.png"
