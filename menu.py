@@ -13,6 +13,7 @@ class Menu(arcade.View):
         self.opcion_seleccionada = 0
         self.submenu = None
         self.dificultad = self.datos.get("dificultad", "facil")
+        self._cargar_assets()
         self._crear_textos()
 
     def _crear_textos(self):
@@ -26,15 +27,15 @@ class Menu(arcade.View):
                                           cx, ALTO_VENTANA - 210,
                                           arcade.color.GOLD, 14, anchor_x="center")
         self.txt_opciones = [
-            arcade.Text(op, cx, ALTO_VENTANA - 300 - i * 60,
+            arcade.Text(op, cx, ALTO_VENTANA - 308 - i * 60,
                         arcade.color.WHITE, 22, anchor_x="center")
-            for i, op in enumerate(OPCIONES)
+        for i, op in enumerate(OPCIONES)
         ]
         self.txt_instruccion = arcade.Text("↑↓ para navegar   ENTER para seleccionar",
                                             cx, 40, (150, 150, 150), 12, anchor_x="center")
-        self.txt_controles_val = arcade.Text("", cx, ALTO_VENTANA - 300 - 1 * 60 - 28,
+        self.txt_controles_val = arcade.Text("", cx, ALTO_VENTANA - 300 - 1 * 60 - 22,
                                               (52, 152, 219), 12, anchor_x="center")
-        self.txt_dificultad_val = arcade.Text("", cx, ALTO_VENTANA - 300 - 2 * 60 - 28,
+        self.txt_dificultad_val = arcade.Text("", cx, ALTO_VENTANA - 300 - 2 * 60 - 22,
                                                (52, 152, 219), 12, anchor_x="center")
         self._actualizar_subtextos()
 
@@ -100,22 +101,33 @@ class Menu(arcade.View):
 
     def on_draw(self):
         self.window.clear((20, 28, 36))
+    
+        arcade.draw_texture_rect(
+            self.img_fondo,
+            arcade.XYWH(ANCHO_VENTANA // 2, ALTO_VENTANA // 2, ANCHO_VENTANA, ALTO_VENTANA)
+        )
+        arcade.draw_lrbt_rectangle_filled(0, ANCHO_VENTANA, 0, ALTO_VENTANA, (0, 0, 0, 100))
+    
         self.txt_titulo.draw()
         self.txt_subtitulo.draw()
         self.txt_highscore.draw()
         self.txt_instruccion.draw()
+
+        cx = ANCHO_VENTANA // 2
         for i, txt in enumerate(self.txt_opciones):
+            y = ALTO_VENTANA - 300 - i * 60
+            ancho = 280 if i == self.opcion_seleccionada and self.submenu is None else 260
+            arcade.draw_texture_rect(self.img_btn[i], arcade.XYWH(cx, y - 5, ancho, 55))
             if i == self.opcion_seleccionada and self.submenu is None:
-                txt.color = arcade.color.GOLD
-            else:
                 txt.color = arcade.color.WHITE
+            else:
+                txt.color = (200, 200, 200)
             txt.draw()
-        self.txt_controles_val.draw()
-        self.txt_dificultad_val.draw()
+
         if self.submenu == "controles":
-            self._dibujar_submenu("Controles", "← → para cambiar entre flechas y WASD\nESC para volver")
+            self._dibujar_submenu("Controles", f"actual: {self.datos.get('controles', 'flechas')}\n← → para cambiar\nESC para volver")
         elif self.submenu == "dificultad":
-            self._dibujar_submenu("Dificultad", "← → para cambiar\nESC para volver")
+            self._dibujar_submenu("Dificultad", f"actual: {self.dificultad}\n← → para cambiar\nESC para  volver")
 
     def _dibujar_submenu(self, titulo, instruccion):
         cx = ANCHO_VENTANA // 2
@@ -126,3 +138,13 @@ class Menu(arcade.View):
                     anchor_x="center", bold=True).draw()
         arcade.Text(instruccion, cx, cy, (200, 200, 200), 13,
                     anchor_x="center", multiline=True, width=400).draw()
+        
+    def _cargar_assets(self):
+        self.img_fondo = arcade.load_texture("assets/fondo_menu.png")
+    
+        sheet = arcade.load_spritesheet("assets/botones.png")
+        alto_ribbon = 1563 // 5
+        self.img_btn = [
+            sheet.get_texture(arcade.LRBT(0, 1024, 1563 - (i + 1) * alto_ribbon, 1563 - i * alto_ribbon))
+            for i in range(5)
+        ]

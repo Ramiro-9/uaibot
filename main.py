@@ -4,6 +4,7 @@ from menu import Menu
 
 def main():
     ventana = arcade.Window(ANCHO_VENTANA, ALTO_VENTANA, TITULO)
+    ventana.musica_player = None
     menu = Menu()
     ventana.show_view(menu)
     arcade.run()

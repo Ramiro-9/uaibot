@@ -26,3 +26,4 @@ SPRITE_HUELLA_DERECHA   = "assets/huella_derecha.png"
 SPRITE_HIELO     = "assets/hielo.png"
 SPRITE_TELEPORTE = "assets/teleporte.png"
 SPRITE_PLACA     = "assets/placa.png"
+COLOR_ACENTO = (52, 152, 219)

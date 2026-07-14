@@ -1,9 +1,42 @@
 # nivel.py
 import random
+import mapa as mapa_mod
 from constantes import *
 
 def generar_nivel(numero_nivel, dificultad):
-    return _generar_automatico(numero_nivel, dificultad)
+    if dificultad == "facil":
+        return _generar_automatico(numero_nivel, dificultad)
+    else:
+        return _cargar_desde_tmx(numero_nivel, dificultad)
+
+def _cargar_desde_tmx(numero_nivel, dificultad):
+    ruta = f"mapas/nivel_{dificultad}_{numero_nivel}.tmx"
+    print(f"Cargando: {ruta}")
+    datos = mapa_mod.cargar_mapa(ruta)
+    if datos is None:
+        print("Error cargando TMX, usando generacion automatica")
+        return _generar_automatico(numero_nivel, dificultad)
+
+    objetos = datos["objetos"]
+    for pos in objetos["puertas_llave"]:
+        datos["paredes"].add(pos)
+    for puerta in objetos["puertas_placa"]:
+        datos["paredes"].add(puerta["pos"])
+
+    return {
+        "paredes":       datos["paredes"],
+        "portal":        objetos["portal"] or POS_MERENDERO,
+        "pos_llave":     objetos["llave"],
+        "hielo":         datos["hielo"],
+        "teleportes":    datos["teleportes"],
+        "puertas_llave": objetos["puertas_llave"],
+        "puertas_placa": objetos["puertas_placa"],
+        "placas":        objetos["placas"],
+        "tile_map":      datos["tile_map"],
+        "ancho":         datos["ancho"],
+        "alto":          datos["alto"],
+        "celdas_fondo":  {},
+    }
 
 def _generar_automatico(numero_nivel, dificultad):
     if numero_nivel == 1:
@@ -17,7 +50,6 @@ def _generar_automatico(numero_nivel, dificultad):
             if _hay_camino(POS_INICIO, POS_MERENDERO, paredes):
                 break
 
-        # hielo: aparece a partir del nivel 3
         hielo = set()
         if numero_nivel >= 3:
             cantidad_hielo = min(numero_nivel - 2, 4)
@@ -31,7 +63,6 @@ def _generar_automatico(numero_nivel, dificultad):
             ]
             hielo = set(random.sample(candidatas, min(cantidad_hielo, len(candidatas))))
 
-        # teleportes: aparecen a partir del nivel 5, siempre en pares
         teleportes = {}
         if numero_nivel >= 5:
             candidatas = [

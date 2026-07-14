@@ -42,6 +42,11 @@ class Juego(arcade.View):
         self._cargar_assets()
 
     def setup(self, numero_nivel=1, puntaje_total=0):
+        # al inicio de setup, antes de todo
+        if hasattr(self, 'musica_player') and self.musica_player:
+            arcade.stop_sound(self.musica_player)
+            self.musica_player = None
+        self.musica_player = arcade.play_sound(self.musica, volume=0.3, loop=True)
         self.numero_nivel  = numero_nivel
         self.puntaje_total = puntaje_total
         self.pasos         = 0
@@ -52,6 +57,7 @@ class Juego(arcade.View):
         self.caminando     = False
         self.tiene_llave   = False
         self.animacion_portal = 0.0
+        self.puntaje_nivel = 0
 
         datos = nivel_mod.generar_nivel(self.numero_nivel, self.dificultad)
         self.paredes       = datos["paredes"]
@@ -64,6 +70,18 @@ class Juego(arcade.View):
         self.placas        = list(datos["placas"])
         self.mapa_ancho    = datos["ancho"]
         self.mapa_alto     = datos["alto"]
+
+        self.mostrar_anuncio = True
+        self.timer_anuncio = 0
+
+        self.tile_map = datos.get("tile_map", None)
+        if self.tile_map:
+            self.escena = arcade.Scene.from_tilemap(self.tile_map)
+            self.camara = arcade.Camera2D()
+            self.camara.position = (ANCHO_JUEGO // 2, ALTO_JUEGO // 2)
+        else:
+            self.escena = None
+            self.camara = None
 
         self.col, self.fila = POS_INICIO
         self.sendero     = {POS_INICIO}
@@ -100,6 +118,29 @@ class Juego(arcade.View):
         self.snd_mover     = arcade.load_sound("assets/Moverse.wav")
         self.snd_no_mover  = arcade.load_sound("assets/NoMoverse.wav")
         self.snd_victoria  = arcade.load_sound("assets/CompletedLevel.wav")
+        self.musica = arcade.load_sound("assets/GameLevelMusic.wav")
+
+        # spritesheets de elementos animados
+        sheet_llave = arcade.load_spritesheet("assets/llave_anim.png")
+        sheet_portal = arcade.load_spritesheet("assets/portal_anim.png")
+        sheet_teleporte = arcade.load_spritesheet("assets/teleporte_anim.png")
+
+        self.frames_llave = [
+            sheet_llave.get_texture(arcade.LRBT(i * 20, i * 20 + 20, 0, 20))
+            for i in range(9)
+        ]
+        self.frames_portal = [
+            sheet_portal.get_texture(arcade.LRBT(i * 64, i * 64 + 64, 0, 64))
+            for i in range(8)
+        ]
+        self.frames_teleporte = [
+            sheet_teleporte.get_texture(arcade.LRBT(i * 48, i * 48 + 48, 0, 64))
+            for i in range(2)
+        ]
+
+        self.frame_elementos = 0
+        self.timer_elementos = 0
+        self.velocidad_elementos = 10
 
     def _crear_textos(self):
         px = ANCHO_JUEGO
@@ -193,8 +234,11 @@ class Juego(arcade.View):
         elif symbol == arcade.key.N:
             self.setup(1, 0)
         elif symbol == arcade.key.ESCAPE:
-            from menu import Menu
-            self.window.show_view(Menu())
+           if hasattr(self, 'musica_player') and self.musica_player:
+               arcade.stop_sound(self.musica_player)
+               self.musica_player = None
+           from menu import Menu
+           self.window.show_view(Menu())
 
     def on_key_release(self, symbol, modifiers):
         if symbol in (arcade.key.UP, arcade.key.DOWN, arcade.key.LEFT, arcade.key.RIGHT,
@@ -281,8 +325,8 @@ class Juego(arcade.View):
 
     def _completar_nivel(self):
         self.ganado = True
-        puntaje_nivel = self._calcular_puntaje()
-        self.puntaje_total += puntaje_nivel
+        self.puntaje_nivel = self._calcular_puntaje()
+        self.puntaje_total += self.puntaje_nivel
         self.txt_puntaje.value = str(self.puntaje_total)
         guardado.actualizar_highscore(self.puntaje_total)
         arcade.play_sound(self.snd_victoria)
@@ -325,24 +369,57 @@ class Juego(arcade.View):
                 for _ in range(30):
                     self.particulas.append(Particula())
             if self.timer_estado == 180:
+                if hasattr(self, 'musica_player') and self.musica_player:
+                    arcade.stop_sound(self.musica_player)
+                    self.musica_player = None
                 if self.numero_nivel < 10:
                     self.setup(self.numero_nivel + 1, self.puntaje_total)
                 else:
                     from menu import Menu
                     self.window.show_view(Menu())
 
+        self.timer_elementos += 1
+        if self.timer_elementos >= self.velocidad_elementos:
+            self.timer_elementos = 0
+            self.frame_elementos = (self.frame_elementos + 1) % 9
+        if self.camara:
+            x, y = self._celda_a_px(self.col, self.fila)
+            cam_x = max(ANCHO_JUEGO // 2, min(
+                self.mapa_ancho * TAM_CELDA - ANCHO_JUEGO // 2 + TAM_CELDA *2, x
+            ))
+            self.camara.position = (cam_x, ALTO_JUEGO // 2)
+        if self.mostrar_anuncio:
+            self.timer_anuncio += 1
+        if self.timer_anuncio >= 120:  # 2 segundos
+            self.mostrar_anuncio = False
+
     def on_draw(self):
         self.window.clear((20, 28, 36))
-        self._dibujar_grilla()
-        self._dibujar_sendero()
-        self._dibujar_paredes()
-        self._dibujar_hielo()
-        self._dibujar_teleportes()
-        self._dibujar_placas()
-        self._dibujar_portal()
-        self._dibujar_llave()
-        self._dibujar_uaibot()
+        if self.camara:
+            with self.camara.activate():
+                if self.escena:
+                    self.escena.draw()
+                self._dibujar_sendero()
+                self._dibujar_paredes()
+                self._dibujar_hielo()
+                self._dibujar_teleportes()
+                self._dibujar_placas()
+                self._dibujar_portal()
+                self._dibujar_llave()
+                self._dibujar_uaibot()
+        else:
+            self._dibujar_grilla()
+            self._dibujar_sendero()
+            self._dibujar_paredes()
+            self._dibujar_hielo()
+            self._dibujar_teleportes()
+            self._dibujar_placas()
+            self._dibujar_portal()
+            self._dibujar_llave()
+            self._dibujar_uaibot()
         self._dibujar_panel()
+        if self.mostrar_anuncio:
+            self._dibujar_anuncio_nivel()
         if self.ganado:
             self._dibujar_overlay_victoria()
         elif self.perdido:
@@ -356,12 +433,13 @@ class Juego(arcade.View):
     def _dibujar_grilla(self):
         for fila in range(self.mapa_alto):
             for col in range(self.mapa_ancho):
-                color = (44, 62, 80) if (col + fila) % 2 == 0 else (39, 55, 70)
-                arcade.draw_lrbt_rectangle_filled(
-                    col * TAM_CELDA + 1, col * TAM_CELDA + TAM_CELDA - 1,
-                    fila * TAM_CELDA + 1, fila * TAM_CELDA + TAM_CELDA - 1,
-                    color
-                )
+                if self.numero_nivel == 1 or not spr.dibujar_celda(SPRITE_CESPED, col, fila, TAM_CELDA):
+                    color = (44, 62, 80) if (col + fila) % 2 == 0 else (39, 55, 70)
+                    arcade.draw_lrbt_rectangle_filled(
+                        col * TAM_CELDA + 1, col * TAM_CELDA + TAM_CELDA - 1,
+                        fila * TAM_CELDA + 1, fila * TAM_CELDA + TAM_CELDA - 1,
+                        color
+                    )
 
     def _dibujar_sendero(self):
         for (col, fila) in self.sendero:
@@ -384,8 +462,10 @@ class Juego(arcade.View):
                 )
 
     def _dibujar_paredes(self):
+        if self.tile_map:
+            return
         for (col, fila) in self.paredes:
-            if not spr.dibujar_celda(SPRITE_PARED, col, fila, TAM_CELDA):
+            if self.numero_nivel == 1 or not spr.dibujar_celda(SPRITE_PARED, col, fila, TAM_CELDA):
                 arcade.draw_lrbt_rectangle_filled(
                     col * TAM_CELDA + 1, col * TAM_CELDA + TAM_CELDA - 1,
                     fila * TAM_CELDA + 1, fila * TAM_CELDA + TAM_CELDA - 1,
@@ -403,12 +483,12 @@ class Juego(arcade.View):
 
     def _dibujar_teleportes(self):
         for (col, fila) in self.teleportes:
-            if not spr.dibujar_celda(SPRITE_TELEPORTE, col, fila, TAM_CELDA):
-                arcade.draw_lrbt_rectangle_filled(
-                    col * TAM_CELDA + 1, col * TAM_CELDA + TAM_CELDA - 1,
-                    fila * TAM_CELDA + 1, fila * TAM_CELDA + TAM_CELDA - 1,
-                    (130, 50, 220)
-                )
+            x, y = self._celda_a_px(col, fila)
+            frame = self.frames_teleporte[self.frame_elementos % len(self.frames_teleporte)]
+            arcade.draw_texture_rect(
+                frame,
+                arcade.XYWH(x, y, TAM_CELDA, TAM_CELDA)
+            )
 
     def _dibujar_placas(self):
         for placa in self.placas:
@@ -434,38 +514,21 @@ class Juego(arcade.View):
             )
             arcade.draw_texture_rect(self.img_merendero, arcade.XYWH(x, y, TAM_CELDA, TAM_CELDA))
         else:
-            # pulso basado en el timer de animacion
-            pulso = abs(math.sin(self.animacion_portal))
-            r = int(100 + 80 * pulso)
-            g = int(30 + 20 * pulso)
-            b = int(200 + 55 * pulso)
-            margen = int(4 + 4 * pulso)
-
-            arcade.draw_lrbt_rectangle_filled(
-                col * TAM_CELDA + 1, col * TAM_CELDA + TAM_CELDA - 1,
-                fila * TAM_CELDA + 1, fila * TAM_CELDA + TAM_CELDA - 1,
-                (r, g, b, 200)
+            frame_portal = self.frames_portal[self.frame_elementos % len(self.frames_portal)]
+            arcade.draw_texture_rect(
+                frame_portal,
+                arcade.XYWH(x, y, TAM_CELDA, TAM_CELDA)
             )
-            arcade.draw_lrbt_rectangle_outline(
-                col * TAM_CELDA + margen, col * TAM_CELDA + TAM_CELDA - margen,
-                fila * TAM_CELDA + margen, fila * TAM_CELDA + TAM_CELDA - margen,
-                (200, 150, 255), 2
-            )
-            arcade.Text("▶", x, y, (255, 255, 255), 20,
-                        anchor_x="center", anchor_y="center").draw()
 
     def _dibujar_llave(self):
         if self.pos_llave and not self.tiene_llave:
             col, fila = self.pos_llave
             x, y = self._celda_a_px(col, fila)
-            if not spr.dibujar_celda(SPRITE_LLAVE, col, fila, TAM_CELDA):
-                arcade.draw_lrbt_rectangle_filled(
-                    col * TAM_CELDA + 8, col * TAM_CELDA + TAM_CELDA - 8,
-                    fila * TAM_CELDA + 8, fila * TAM_CELDA + TAM_CELDA - 8,
-                    (241, 196, 15)
-                )
-                arcade.Text("🔑", x, y, arcade.color.BLACK, 16,
-                            anchor_x="center", anchor_y="center").draw()
+            frame = self.frames_llave[self.frame_elementos % len(self.frames_llave)]
+            arcade.draw_texture_rect(
+                frame,
+                arcade.XYWH(x, y, TAM_CELDA, TAM_CELDA)
+            )
 
     def _dibujar_uaibot(self):
         x, y = self._celda_a_px(self.col, self.fila)
@@ -474,6 +537,24 @@ class Juego(arcade.View):
             frames[self.frame_actual],
             arcade.XYWH(x, y, TAM_CELDA, TAM_CELDA)
         )
+    def _dibujar_anuncio_nivel(self):
+        import math
+        alpha = int(255 * min(1.0, (120 - self.timer_anuncio) / 30))
+        arcade.draw_lrbt_rectangle_filled(
+            0, ANCHO_JUEGO, 0, ALTO_VENTANA, (0, 0, 0, 150)
+        )
+        arcade.Text(
+            f"NIVEL {self.numero_nivel}",
+            ANCHO_JUEGO // 2, ALTO_VENTANA // 2 + 20,
+            (*arcade.color.GOLD[:3], alpha), 48,
+            anchor_x="center", anchor_y="center", bold=True
+        ).draw()
+        arcade.Text(
+            self.dificultad.upper(),
+            ANCHO_JUEGO // 2, ALTO_VENTANA // 2 - 30,
+            (*COLOR_ACENTO[:3], alpha), 18,
+            anchor_x="center", anchor_y="center"
+        ).draw()
 
     def _dibujar_panel(self):
         arcade.draw_lrbt_rectangle_filled(
@@ -504,6 +585,12 @@ class Juego(arcade.View):
             p.dibujar()
         self.txt_victoria.draw()
         self.txt_victoria_sub.draw()
+        arcade.Text(
+             f"+{self.puntaje_nivel} puntos",
+             ANCHO_JUEGO // 2, ALTO_VENTANA // 2 - 60,
+            arcade.color.LIME_GREEN, 24,
+            anchor_x="center", anchor_y="center", bold=True
+        ).draw()
 
     def _dibujar_overlay_perdido(self):
         arcade.draw_lrbt_rectangle_filled(0, ANCHO_JUEGO, 0, ALTO_VENTANA, (0, 0, 0, 180))
