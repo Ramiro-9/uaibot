@@ -1,10 +1,17 @@
+# sprites.py
+# Carga y cachea texturas de sprites con sistema de fallback.
+# Si una imagen no existe, las funciones retornan False y el código
+# principal dibuja un color de reemplazo en su lugar.
+
 import os
 import arcade
 
+# Caché de texturas para no recargar el mismo archivo varias veces
 _cache = {}
 
 def cargar(path):
-    """Carga una textura si existe, sino retorna None"""
+    """Carga una textura si el archivo existe, sino retorna None.
+    Usa caché para evitar lecturas repetidas del disco."""
     if path in _cache:
         return _cache[path]
     if os.path.exists(path):
@@ -15,7 +22,9 @@ def cargar(path):
     return None
 
 def dibujar_celda(path, col, fila, tam):
-    """Dibuja una celda con imagen si existe, sino con el color de fallback dado, ojo con esto juan"""
+    """Intenta dibujar una celda con su imagen correspondiente.
+    Retorna True si pudo dibujar la imagen, False si no existe
+    (en ese caso el código principal dibuja el color de fallback)."""
     tex = cargar(path)
     if tex:
         x = col * tam + tam // 2
