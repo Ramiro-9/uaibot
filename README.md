@@ -1,4 +1,4 @@
-##30094 - FURYDEVELOPERS
+## 30094 - FURYDEVELOPERS
 ## Instalación
 
 ```bash
