@@ -186,7 +186,7 @@ class Juego(arcade.View):
             for i in range(8)
         ]
         self.frames_teleporte = [
-            sheet_teleporte.get_texture(arcade.LRBT(i * 48, i * 48 + 48, 0, 64))
+            sheet_teleporte.get_texture(arcade.LRBT(i * 32, i * 32 + 32, 0, 32))
             for i in range(6)
         ]
 
