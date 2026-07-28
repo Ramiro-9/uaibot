@@ -125,7 +125,7 @@ class Juego(arcade.View):
         # Posición en píxeles para el movimiento suave
         self.px_x, self.px_y    = self._celda_a_px(*POS_INICIO)
         self.moviendose         = False
-        self.velocidad_movimiento = 8   # píxeles por frame
+        self.velocidad_movimiento = 10   # píxeles por frame
 
     def _inicializar_estado_puertas(self):
         """Crea el estado de animación inicial para todas las puertas del nivel.
