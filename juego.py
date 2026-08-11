@@ -249,6 +249,15 @@ class Juego(arcade.View):
         alcanzado); Viaje guarda el progreso y desbloquea personajes."""
         guardado.actualizar_highscore_infinito(self.puntaje_total, self.numero_nivel)
 
+    def _guardar_snapshot(self):
+        """Se llama justo antes de cada acción que cambia el estado del
+        nivel (mover, recoger la llave), para que los modos que tengan
+        deshacer puedan volver atrás.
+
+        Infinito no lo usa: es un modo de eficiencia, donde poder deshacer
+        un paso vaciaría de sentido al límite de pasos y al puntaje. Viaje
+        sí lo implementa (ver viaje.py)."""
+
     def _inicializar_estado_puertas(self):
         """Crea el estado de animación inicial para todas las puertas del nivel.
         Cada puerta arranca en frame 0 (cerrada) y sin animación activa."""
@@ -365,6 +374,16 @@ class Juego(arcade.View):
         self.sendero_sprites.append(
             self._crear_sprite_celda(path, col, fila, COLOR_SENDERO)
         )
+
+    def _reconstruir_sendero_sprites(self):
+        """Rearma la SpriteList del sendero completa a partir de
+        self.sendero y self.direcciones. La usa el deshacer de Viaje: al
+        volver a un estado anterior es más simple y seguro rearmar la capa
+        entera que intentar sacar sprites de a uno, que es el mismo
+        criterio que ya usa _reconstruir_cajas_sprites."""
+        self.sendero_sprites = arcade.SpriteList()
+        for (col, fila) in self.sendero:
+            self._agregar_huella(col, fila)
 
     # ── Carga de assets ───────────────────────────────────────────────────────
     def _cargar_assets(self):
@@ -577,6 +596,7 @@ class Juego(arcade.View):
         """Recoge la llave si UAIBOT está en la misma celda y aún no la tiene.
         Al recogerla, dispara la animación de apertura de las puertas correspondientes."""
         if self.pos_llave and (self.col, self.fila) == self.pos_llave and not self.tiene_llave:
+            self._guardar_snapshot()
             self.tiene_llave = True
             self.txt_llave.value = "LLAVE: SI"
             self.txt_llave.color = (100, 200, 100)
@@ -609,6 +629,14 @@ class Juego(arcade.View):
             arcade.play_sound(self.snd_no_mover)
             return
 
+        # Verificar sendero ya pisado (no se puede volver por donde pasó).
+        # Va ANTES de empujar la caja a propósito: si no, al empujar una
+        # caja hacia una celda ya recorrida la caja se movía igual y
+        # UAIBOT no, dejando el empujón hecho a medias.
+        if (nc, nf) in self.sendero:
+            arcade.play_sound(self.snd_no_mover)
+            return
+
         # Caja empujable (Ronda 2, solo existe en mapas Tiled): si el
         # destino tiene una caja, hay que intentar empujarla UNA celda
         # más allá en la misma dirección antes de poder ocupar su lugar.
@@ -622,14 +650,16 @@ class Juego(arcade.View):
                 # UAIBOT se mueven.
                 arcade.play_sound(self.snd_no_mover)
                 return
-            self.cajas.discard((nc, nf))
-            self.cajas.add((nc_caja, nf_caja))
-            self._reconstruir_cajas_sprites()
 
-        # Verificar sendero ya pisado (no se puede volver por donde pasó)
-        if (nc, nf) in self.sendero:
-            arcade.play_sound(self.snd_no_mover)
-            return
+        # A partir de acá el movimiento ya es válido y empieza a cambiar
+        # el estado, así que este es el punto donde hay que guardar el
+        # snapshot para poder deshacerlo (ver _guardar_snapshot).
+        self._guardar_snapshot()
+
+        if (nc, nf) in self.cajas:
+            self.cajas.discard((nc, nf))
+            self.cajas.add((nc + dc, nf + df))
+            self._reconstruir_cajas_sprites()
 
         # Movimiento válido: se registra la dirección ANTES de agregar la
         # huella, porque _agregar_huella lee self.direcciones para saber

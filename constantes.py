@@ -41,15 +41,19 @@ SPRITE_CAJA             = "assets/caja.png"
 # ── Colores de UI ─────────────────────────────────────────────────────────────
 COLOR_ACENTO = (52, 152, 219)   # azul usado en títulos y bordes del panel
 
-# ── Tutorial (Ronda 2): personajes jugables ────────────────────────────────────
-# Los 4 personajes que la consigna pide poder alternar con la tecla C.
+# ── La familia de UAIBOT: personajes jugables ─────────────────────────────────
+# Los 4 personajes que se pueden alternar con la tecla C. Los usan dos
+# modos, con reglas distintas: en Tutorial están los cuatro disponibles
+# desde el arranque, cada uno con su cupo de pasos (consigna 2 de la Ronda
+# 2); en Viaje se van desbloqueando al superar niveles y no tienen cupo.
+#
 # Reutilizan el mismo spritesheet Idle/Walk de UAIBOT (no hace falta arte
 # nuevo): "color" es un tinte que se aplica sobre la textura para que se
 # distingan entre sí, con el mismo espíritu que el resto del código usa un
 # color de fallback cuando falta un sprite propio.
-MAX_PASOS_PERSONAJE = 8   # cupo de pasos de cada personaje antes de tener
-                          # que cambiar a otro (consigna 2 de Ronda 2)
-PERSONAJES_TUTORIAL = [
+MAX_PASOS_PERSONAJE = 8   # cupo de pasos de cada personaje en Tutorial,
+                          # antes de tener que cambiar a otro
+PERSONAJES_FAMILIA = [
     {"id": "uaibot",    "nombre": "UAIBOT",    "color": (255, 255, 255)},
     {"id": "uaibota",   "nombre": "UAIBOTA",   "color": (255, 170, 210)},
     {"id": "uaibotina", "nombre": "UAIBOTINA", "color": (170, 210, 255)},

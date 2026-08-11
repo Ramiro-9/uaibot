@@ -87,7 +87,7 @@ class Tutorial(arcade.View):
         self.historial    = []             # pila de snapshots para deshacer (Z)
 
         self.personaje_activo = 0
-        self.pasos_restantes  = {p["id"]: MAX_PASOS_PERSONAJE for p in PERSONAJES_TUTORIAL}
+        self.pasos_restantes  = {p["id"]: MAX_PASOS_PERSONAJE for p in PERSONAJES_FAMILIA}
         self.pasos            = 0
 
         self.tiempo_transcurrido = 0.0
@@ -278,7 +278,7 @@ class Tutorial(arcade.View):
 
     def _actualizar_texto_personajes(self):
         lineas = []
-        for i, p in enumerate(PERSONAJES_TUTORIAL):
+        for i, p in enumerate(PERSONAJES_FAMILIA):
             marca      = "» " if i == self.personaje_activo else "  "
             restantes  = self.pasos_restantes[p["id"]]
             lineas.append(f"{marca}{p['nombre']}: {restantes}/{MAX_PASOS_PERSONAJE}")
@@ -364,10 +364,10 @@ class Tutorial(arcade.View):
         """Busca, ciclando desde el índice siguiente a `desde`, el primer
         personaje con pasos disponibles. Devuelve `desde` si es el único
         que todavía tiene, o None si ninguno tiene pasos."""
-        n = len(PERSONAJES_TUTORIAL)
+        n = len(PERSONAJES_FAMILIA)
         for offset in range(1, n + 1):
             i = (desde + offset) % n
-            if self.pasos_restantes[PERSONAJES_TUTORIAL[i]["id"]] > 0:
+            if self.pasos_restantes[PERSONAJES_FAMILIA[i]["id"]] > 0:
                 return i
         return None
 
@@ -387,7 +387,7 @@ class Tutorial(arcade.View):
         """Se llama después de cada movimiento: si el personaje activo se
         quedó sin pasos, cambia solo al siguiente disponible. Si ninguno
         de los 4 tiene pasos y todavía no se ganó, el nivel se pierde."""
-        personaje_id = PERSONAJES_TUTORIAL[self.personaje_activo]["id"]
+        personaje_id = PERSONAJES_FAMILIA[self.personaje_activo]["id"]
         if self.pasos_restantes[personaje_id] > 0:
             return
 
@@ -493,7 +493,7 @@ class Tutorial(arcade.View):
         self.caminando = True
         arcade.play_sound(self.snd_mover)
 
-        personaje_id = PERSONAJES_TUTORIAL[self.personaje_activo]["id"]
+        personaje_id = PERSONAJES_FAMILIA[self.personaje_activo]["id"]
         self.pasos_restantes[personaje_id] -= 1
         self._actualizar_texto_personajes()
 
@@ -638,7 +638,7 @@ class Tutorial(arcade.View):
 
     def _dibujar_personaje(self):
         frames    = self.frames_walk if self.moviendose else self.frames_idle
-        personaje = PERSONAJES_TUTORIAL[self.personaje_activo]
+        personaje = PERSONAJES_FAMILIA[self.personaje_activo]
         self.sprite_personaje.texture  = frames[self.frame_actual]
         self.sprite_personaje.color    = personaje["color"]
         self.sprite_personaje.center_x = self.px_x

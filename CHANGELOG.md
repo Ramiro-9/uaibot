@@ -147,3 +147,36 @@ como implementación por defecto. El Modo Infinito no cambia en nada.
   la llave o la placa de presión.
 - En el panel lateral, el bloque de controles se superponía con el
   recordatorio del pie.
+
+## [1.5.1] — Personajes jugables y deshacer en Viaje
+
+Parche sobre la 1.5. Hasta acá, desbloquear un personaje en la campaña
+no servía de nada: aparecía el aviso, quedaba guardado, y no se podía
+jugar con él en ningún lado. Ahora el desbloqueo tiene consecuencia.
+
+- **Cambio de personaje con la tecla C en Modo Viaje**, limitado a los
+  que ya se desbloquearon: al empezar solo está UAIBOT, y se van sumando
+  a medida que se superan los niveles 2, 5 y 8. A diferencia de
+  Tutorial, acá no hay cupo de pasos por personaje. El panel muestra
+  quién está activo, y el sprite se tiñe con su color.
+- **Deshacer con la tecla Z en Modo Viaje**, que revierte movimientos,
+  cambios de personaje y la recolección de la llave —incluida la
+  apertura de las puertas que esa llave provoca, que vuelven a cerrarse.
+  El historial se vacía en cada nivel. El Modo Infinito no lo tiene a
+  propósito: poder deshacer un paso vaciaría de sentido su límite de
+  pasos y su puntaje por eficiencia.
+- La lista de personajes pasa a llamarse `PERSONAJES_FAMILIA` en vez de
+  `PERSONAJES_TUTORIAL`, porque ya la usan dos modos con reglas
+  distintas.
+- Los archivos `.pyc` de `__pycache__` dejan de estar versionados:
+  estaban trackeados desde antes de que existiera la regla en
+  `.gitignore`, que no afecta a lo ya trackeado.
+
+### Correcciones
+
+- Al empujar una caja hacia una celda ya recorrida, la caja se movía
+  igual pero el personaje no, dejando el empujón hecho a medias. Ahora
+  la comprobación del sendero va antes del empujón. Solo afectaba a
+  mapas con cajas, que todavía no hay ninguno.
+- El indicador de llave se superponía con el bloque de personaje en el
+  panel de Viaje.

@@ -50,6 +50,19 @@ class Viaje(Juego):
         self.juego_completado      = False
         self.personaje_desbloqueado = None   # se muestra al ganar el nivel
 
+        # Solo se puede jugar con los personajes ya desbloqueados. Se lee
+        # el guardado en cada nivel (y no una sola vez al crear la vista)
+        # porque un desbloqueo ocurre justo al terminar el nivel anterior.
+        desbloqueados = guardado.cargar()["personajes_desbloqueados"]
+        self.personajes_disponibles = [
+            p for p in PERSONAJES_FAMILIA if p["id"] in desbloqueados
+        ]
+        self.personaje_activo = 0
+
+        # Pila de estados para el deshacer con Z. Se vacía en cada nivel:
+        # no tiene sentido deshacer hacia un nivel que ya quedó atrás.
+        self.historial = []
+
         super().setup(numero_nivel, puntaje_total)
 
     # ── Costuras: en qué se aparta Viaje del Modo Infinito ────────────────────
@@ -89,6 +102,87 @@ class Viaje(Juego):
             guardado.desbloquear_personaje(id_personaje)
             self.personaje_desbloqueado = id_personaje.upper()
 
+    # ── Cambio de personaje (tecla C) ─────────────────────────────────────────
+    def _cambiar_personaje(self):
+        """Pasa al siguiente personaje desbloqueado. A diferencia de
+        Tutorial, acá no hay cupo de pasos: se cambia libremente, y lo que
+        limita quiénes están disponibles es cuánto se avanzó en la campaña."""
+        if len(self.personajes_disponibles) < 2:
+            # Todavía no se desbloqueó nadie más que UAIBOT.
+            arcade.play_sound(self.snd_no_mover)
+            return
+
+        self._guardar_snapshot()
+        self.personaje_activo = (self.personaje_activo + 1) % len(self.personajes_disponibles)
+        self._actualizar_texto_personaje()
+
+    def _actualizar_texto_personaje(self):
+        personaje = self.personajes_disponibles[self.personaje_activo]
+        total     = len(self.personajes_disponibles)
+        self.txt_personaje.value = f"{personaje['nombre']}  ({total} en el equipo)"
+        self.txt_personaje.color = personaje["color"]
+
+    # ── Deshacer (tecla Z) ────────────────────────────────────────────────────
+    def _guardar_snapshot(self):
+        """Guarda el estado del nivel antes de una acción reversible.
+
+        Juego llama a este método justo antes de mover, de recoger la
+        llave y -acá- de cambiar de personaje. Se copian solo los datos
+        que una acción puede modificar; las capas de sprites no se
+        guardan, se reconstruyen al restaurar.
+
+        Ojo con lo que muta una sola jugada en este modo: además de la
+        posición y el sendero, pisar una placa o recoger la llave sacan
+        celdas de self.paredes (la puerta se abre) y arrancan la animación
+        de esa puerta, así que todo eso también entra en el snapshot."""
+        self.historial.append({
+            "col": self.col,
+            "fila": self.fila,
+            "sendero":     set(self.sendero),
+            "direcciones": dict(self.direcciones),
+            "pasos":       self.pasos,
+            "cajas":       set(self.cajas),
+            "paredes":     set(self.paredes),
+            "tiene_llave": self.tiene_llave,
+            "personaje_activo": self.personaje_activo,
+            "puertas_placa":     [dict(p) for p in self.puertas_placa],
+            "anim_puertas_llave": {pos: dict(e) for pos, e in self.anim_puertas_llave.items()},
+            "anim_puertas_placa": {pos: dict(e) for pos, e in self.anim_puertas_placa.items()},
+        })
+
+    def _deshacer(self):
+        """Vuelve al estado anterior de la pila y rearma las capas visuales
+        para que no queden huellas ni cajas de un estado que ya no existe."""
+        if not self.historial:
+            arcade.play_sound(self.snd_no_mover)
+            return
+
+        s = self.historial.pop()
+        self.col          = s["col"]
+        self.fila         = s["fila"]
+        self.sendero      = s["sendero"]
+        self.direcciones  = s["direcciones"]
+        self.pasos        = s["pasos"]
+        self.cajas        = s["cajas"]
+        self.paredes      = s["paredes"]
+        self.tiene_llave  = s["tiene_llave"]
+        self.personaje_activo   = s["personaje_activo"]
+        self.puertas_placa      = s["puertas_placa"]
+        self.anim_puertas_llave = s["anim_puertas_llave"]
+        self.anim_puertas_placa = s["anim_puertas_placa"]
+
+        self._reconstruir_sendero_sprites()
+        self._reconstruir_cajas_sprites()
+
+        # La posición en píxeles se reubica de golpe: al deshacer no
+        # corresponde animar el desplazamiento hacia atrás.
+        self.px_x, self.px_y = self._celda_a_px(self.col, self.fila)
+
+        self.txt_pasos.value = str(self.pasos)
+        self.txt_llave.value = "LLAVE: SI" if self.tiene_llave else "LLAVE: NO"
+        self.txt_llave.color = (100, 200, 100) if self.tiene_llave else (200, 100, 100)
+        self._actualizar_texto_personaje()
+
     # ── Panel lateral ─────────────────────────────────────────────────────────
     def _crear_textos(self):
         """Reutiliza todos los textos del panel que arma Juego y ajusta solo
@@ -114,13 +208,50 @@ class Viaje(Juego):
             ANCHO_JUEGO + 16, ALTO_VENTANA - 334, (100, 180, 220), 11
         )
 
+        # Personaje activo, con el nombre en su color. Se mete entre el
+        # puntaje y los controles, y para eso hay que correr el indicador
+        # de llave un poco más abajo del lugar donde lo pone Juego.
+        self.txt_personaje_titulo = arcade.Text(
+            "PERSONAJE (C)", ANCHO_JUEGO + 16, ALTO_VENTANA - 410,
+            arcade.color.GOLD, 11, bold=True
+        )
+        self.txt_personaje = arcade.Text(
+            "", ANCHO_JUEGO + 16, ALTO_VENTANA - 428, (200, 200, 200), 11, bold=True
+        )
+        self.txt_llave.y = ALTO_VENTANA - 448
+        self._actualizar_texto_personaje()
+
+        # Se rehace el bloque de controles para sumar C y Z.
+        controles_texto = (
+            "WASD: mover\nC: cambiar personaje\nZ: deshacer\nR: reiniciar nivel\nESC: menu"
+            if self.controles == "wasd" else
+            "Flechas: mover\nC: cambiar personaje\nZ: deshacer\nR: reiniciar nivel\nESC: menu"
+        )
+        self.txt_controles.value = controles_texto
+
     def _dibujar_panel(self):
         super()._dibujar_panel()
         self.txt_cronometro.draw()
+        self.txt_personaje_titulo.draw()
+        self.txt_personaje.draw()
         # Juego solo dibuja el indicador de llave en dificultad difícil;
         # en la campaña se muestra siempre que el nivel tenga una llave.
         if self.pos_llave:
             self.txt_llave.draw()
+
+    def _dibujar_uaibot(self):
+        """Igual que en Juego, pero tiñendo el sprite con el color del
+        personaje activo: los cuatro comparten el mismo spritesheet.
+
+        El color va envuelto en arcade.types.Color y no como la tupla
+        cruda de constantes.py, porque draw_texture_rect necesita el tipo
+        propio de Arcade (una tupla suelta rompe al dibujar)."""
+        frames = self.frames_walk if self.moviendose else self.frames_idle
+        arcade.draw_texture_rect(
+            frames[self.frame_actual],
+            arcade.XYWH(self.px_x, self.px_y, TAM_CELDA, TAM_CELDA),
+            color=arcade.types.Color(*self.personajes_disponibles[self.personaje_activo]["color"])
+        )
 
     # ── Actualización ─────────────────────────────────────────────────────────
     def on_update(self, delta_time):
@@ -139,6 +270,15 @@ class Viaje(Juego):
         if self.juego_completado and symbol in (arcade.key.R, arcade.key.N):
             self.setup(1, 0)
             return
+
+        if not (self.ganado or self.perdido):
+            if symbol == arcade.key.C:
+                self._cambiar_personaje()
+                return
+            if symbol == arcade.key.Z:
+                self._deshacer()
+                return
+
         super().on_key_press(symbol, modifiers)
 
     # ── Dibujo ────────────────────────────────────────────────────────────────
