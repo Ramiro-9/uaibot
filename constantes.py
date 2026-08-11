@@ -36,6 +36,26 @@ SPRITE_TELEPORTE        = "assets/teleporte.png"
 SPRITE_PLACA            = "assets/placa.png"
 SPRITE_PUERTA_LLAVE     = "assets/puerta_llave_anim.png"
 SPRITE_PUERTA_PLACA     = "assets/puerta_placa_anim.png"
+SPRITE_CAJA             = "assets/caja.png"
 
 # ── Colores de UI ─────────────────────────────────────────────────────────────
 COLOR_ACENTO = (52, 152, 219)   # azul usado en títulos y bordes del panel
+
+# ── Tutorial (Ronda 2): personajes jugables ────────────────────────────────────
+# Los 4 personajes que la consigna pide poder alternar con la tecla C.
+# Reutilizan el mismo spritesheet Idle/Walk de UAIBOT (no hace falta arte
+# nuevo): "color" es un tinte que se aplica sobre la textura para que se
+# distingan entre sí, con el mismo espíritu que el resto del código usa un
+# color de fallback cuando falta un sprite propio.
+MAX_PASOS_PERSONAJE = 8   # cupo de pasos de cada personaje antes de tener
+                          # que cambiar a otro (consigna 2 de Ronda 2)
+PERSONAJES_TUTORIAL = [
+    {"id": "uaibot",    "nombre": "UAIBOT",    "color": (255, 255, 255)},
+    {"id": "uaibota",   "nombre": "UAIBOTA",   "color": (255, 170, 210)},
+    {"id": "uaibotina", "nombre": "UAIBOTINA", "color": (170, 210, 255)},
+    {"id": "uaibotino", "nombre": "UAIBOTINO", "color": (170, 255, 190)},
+]
+
+# Archivo de texto plano (no JSON) donde Tutorial guarda nombre + tiempo de
+# cada partida ganada, tal como pide la consigna 4 de Ronda 2.
+ARCHIVO_PUNTAJES_TUTORIAL = "puntajes_tutorial.txt"

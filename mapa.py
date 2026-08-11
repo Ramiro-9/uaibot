@@ -1,6 +1,13 @@
 # mapa.py
 # Lee archivos .tmx de Tiled y extrae la información necesaria para el juego:
-# paredes, hielo, teleportes y objetos especiales (portal, llave, puertas, placas).
+# paredes, hielo, teleportes y objetos especiales (portal, llave, puertas,
+# placas, cajas, pozos, cinta transportadora e interruptores compartidos).
+#
+# Nota de alcance (Fase 0.3 del plan de Ronda 2): este archivo solo PARSEA
+# los objetos nuevos y los deja disponibles como datos crudos. La lógica de
+# juego de cada mecánica (qué pasa cuando una caja cae en un pozo, cuándo
+# se activa la cinta, cuándo se abre la puerta del interruptor compartido)
+# se conecta después, en juego.py, cuando se implemente cada mecánica.
 
 import arcade
 from constantes import *
@@ -17,11 +24,16 @@ def cargar_mapa(ruta_tmx):
         hielo      = set()
         teleportes = {}
         objetos    = {
-            "portal":        None,
-            "llave":         None,
-            "puertas_llave": [],
-            "puertas_placa": [],
-            "placas":        [],
+            "portal":         None,
+            "llave":          None,
+            "puertas_llave":  [],
+            "puertas_placa":  [],
+            "placas":         [],
+            "cajas":          [],
+            "pozos":          [],
+            "controles_cinta": [],
+            "bloques_cinta":  [],
+            "interruptores":  [],
         }
 
         # Leer la capa de obstáculos y clasificar cada tile según su propiedad "tipo"
@@ -64,6 +76,34 @@ def cargar_mapa(ruta_tmx):
                 elif nombre == "placa":
                     id_puerta = props.get("id_puerta", None)
                     objetos["placas"].append({"pos": (col, fila), "id": id_puerta})
+                elif nombre == "caja":
+                    objetos["cajas"].append((col, fila))
+                elif nombre == "pozo":
+                    # Puente temporal con caja (mecánica #4 del documento MDA):
+                    # celda intransitable hasta que una caja cae adentro. Acá
+                    # solo se registra la posición; el "se llena y queda como
+                    # piso" es lógica de juego.py, no de este parser.
+                    objetos["pozos"].append((col, fila))
+                elif nombre == "control_cinta":
+                    # Cinta transportadora activada a distancia (mecánica #7):
+                    # UAIBOT se para en esta celda y activa el movimiento del
+                    # bloque vinculado por id_cinta, en la dirección indicada.
+                    id_cinta   = props.get("id_cinta", None)
+                    direccion  = props.get("direccion", "derecha")
+                    objetos["controles_cinta"].append({
+                        "pos": (col, fila), "id": id_cinta, "direccion": direccion
+                    })
+                elif nombre == "bloque_cinta":
+                    id_cinta = props.get("id_cinta", None)
+                    objetos["bloques_cinta"].append({"pos": (col, fila), "id": id_cinta})
+                elif nombre == "interruptor":
+                    # Interruptor compartido (mecánica #6, pensada para
+                    # Multijugador): dos interruptores con el mismo id_puerta
+                    # deben estar ocupados al mismo tiempo (uno por jugador)
+                    # para abrir su puerta vinculada. La verificación de "los
+                    # dos al mismo tiempo" es lógica de juego.py / Fase 4.
+                    id_puerta = props.get("id_puerta", None)
+                    objetos["interruptores"].append({"pos": (col, fila), "id": id_puerta})
                 elif nombre == "teleporte":
                     id_tel = props.get("id_teleporte", 1)
                     teleportes.setdefault(id_tel, []).append((col, fila))

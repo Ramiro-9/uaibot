@@ -1,0 +1,89 @@
+PROMPT.TXT — Documentación del uso de Inteligencia Artificial
+Proyecto: UAIBOT — OFIRCA 2026, Desafío Ronda 1
+================================================================
+
+Este proyecto usó IA en dos frentes distintos: generación de una imagen
+de fondo, y asistencia de programación durante el desarrollo del código.
+Se detalla cada uno por separado, con los prompts reales utilizados.
+
+----------------------------------------------------------------
+1. GENERACIÓN DE IMAGEN (ChatGPT)
+----------------------------------------------------------------
+
+Herramienta: ChatGPT (generación de imágenes)
+Uso: fondo del menú principal (assets/fondo_menu.png)
+
+Entrada: se le proporcionaron a la IA el sprite de UAIBOT y la imagen del
+merendero ya usados en el juego, como referencia visual de los
+personajes/escenario.
+
+Prompt utilizado (resumen fiel de lo pedido):
+"Hacer que UAIBOT parezca que camina hacia el merendero por el bosque."
+
+Resultado: una ilustración de fondo estilo pixel-art con UAIBOT caminando
+por un sendero de bosque hacia una casa con un cartel de "MERENDERO",
+usada como fondo del menú principal (menu.py, self.img_fondo).
+
+----------------------------------------------------------------
+2. ASISTENCIA DE PROGRAMACIÓN (Claude)
+----------------------------------------------------------------
+
+Se usó Claude como asistente de programación durante el pulido final del
+proyecto, ya con el juego base funcionando (arcade, 10 niveles,
+dificultades, guardado, mapas Tiled, etc. ya desarrollados previamente
+por el equipo). El uso fue puntual, para features concretas, no para
+generar el proyecto desde cero.
+
+Prompts utilizados (en orden cronológico, redactados tal cual se
+plantearon):
+
+1. "Necesito que el menú también se pueda elegir las opciones con el
+   cursor (mouse), además del teclado que ya tenía."
+   -> Se agregaron los métodos on_mouse_motion y on_mouse_press en
+      menu.py, reutilizando la misma variable de selección
+      (self.opcion_seleccionada) que ya usaba la navegación por teclado,
+      para que ambos métodos de selección queden sincronizados.
+
+2. "¿Cómo configuro en Tiled los objetos de puerta con llave y puerta
+   con placa de presión, para que el código los detecte igual que la
+   llave, el portal y el teleporte?"
+   -> Se documentó el uso del nombre de objeto (puerta_llave, puerta_placa,
+      placa) y la propiedad custom id_puerta para vincular cada placa
+      con su puerta correspondiente, siguiendo el mismo patrón que ya
+      usaba mapa.py para el resto de los objetos.
+
+3. "Agregar los spritesheets de la puerta con placa y la puerta con
+   llave" (se proveyeron las imágenes reales, con sus medidas: puerta
+   llave 937x150 px, puerta placa 907x155 px, 5 frames cada una).
+   -> Se armó el recorte de frames dividiendo el ancho total del PNG por
+      la cantidad de frames (en vez de un tamaño fijo estimado), porque
+      las medidas reales no eran múltiplos exactos de 5. Se identificó
+      que estas animaciones no son "idle en loop" como llave/portal/
+      teleporte, sino animaciones de apertura de un solo sentido
+      (cerrada -> abierta), por lo que se armó un sistema de estado por
+      puerta (frame actual, si está animando) en vez de reusar el índice
+      de frame global.
+
+4. "Tengo inconvenientes con el punto 7 (los métodos de dibujo de las
+   puertas), no sé cómo incorporarlo."
+   -> Se entregó el archivo juego.py completo con todos los cambios ya
+      integrados en los métodos correspondientes (_cargar_assets, setup,
+      _intentar_recoger_llave, _intentar_mover, on_update, on_draw), en
+      vez de fragmentos sueltos, para evitar errores de integración
+      manual.
+
+5. "Ayudame a manejar el tamaño de la llave y sus frames, y también los
+   frames del teleporte" / "la llave se ve grande en comparación a su
+   tamaño real."
+   -> Se identificó que el problema no era el recorte del spritesheet
+      sino el tamaño de dibujo en pantalla (la llave se dibujaba
+      ocupando la celda completa de 60x60). Se agregó un factor de
+      escala (FACTOR_TAMANO_LLAVE) para reducir el rectángulo de destino
+      manteniendo el sprite centrado en la celda.
+
+----------------------------------------------------------------
+Uso responsable: en todos los casos la IA se usó como herramienta de
+asistencia sobre decisiones ya tomadas por el equipo (arquitectura del
+juego, mecánicas, assets), no para generar el proyecto de forma
+autónoma. El equipo revisó, ajustó y probó cada cambio antes de
+incorporarlo al proyecto final.

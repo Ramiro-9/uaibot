@@ -1,4 +1,7 @@
 venv/
 __pycache__/
 *.pyc
-guardado.jsonvenv/ 
+guardado.json
+puntajes_tutorial.txt
+.venv/
+.ruff_cache/ 

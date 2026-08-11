@@ -1,16 +1,29 @@
 # nivel.py
-# Genera o carga los datos de cada nivel según la dificultad:
-#   - Fácil: generación procedural con BFS para garantizar solución
-#   - Medio/Difícil: carga desde archivo .tmx de Tiled
-#     (si no existe el .tmx, usa generación automática como fallback)
+# Genera o carga los datos de cada nivel. Hay dos fuentes posibles:
+#   - Generación procedural, con BFS para garantizar que siempre exista
+#     solución. La dificultad ajusta cuántas paredes, hielo, teleportes y
+#     llave aparecen.
+#   - Mapas .tmx dibujados a mano en Tiled (carpeta mapas/), que existen
+#     numerados 1 a 10 por dificultad.
+#
+# Quién usa qué:
+#   - Modo Infinito llama con usar_tiled=False: siempre procedural, en
+#     todas las dificultades. Un modo "infinito" pierde sentido si repite
+#     un conjunto finito de mapas hechos a mano.
+#   - Modo Viaje (todavía sin implementar) es el que va a usar los mapas
+#     de Tiled, porque son niveles fijos diseñados uno por uno.
 
 import random
 import mapa as mapa_mod
 from constantes import *
 
-def generar_nivel(numero_nivel, dificultad):
-    """Punto de entrada principal. Decide si generar o cargar el nivel."""
-    if dificultad == "facil":
+def generar_nivel(numero_nivel, dificultad, usar_tiled=True):
+    """Punto de entrada principal. Decide si generar el nivel de forma
+    procedural o cargarlo desde un mapa de Tiled.
+
+    Con usar_tiled=False nunca se toca la carpeta mapas/, sin importar la
+    dificultad — es el camino que usa Modo Infinito."""
+    if dificultad == "facil" or not usar_tiled:
         return _generar_automatico(numero_nivel, dificultad)
     else:
         return _cargar_desde_tmx(numero_nivel, dificultad)
@@ -35,26 +48,33 @@ def _cargar_desde_tmx(numero_nivel, dificultad):
         datos["paredes"].add(puerta["pos"])
 
     return {
-        "paredes":       datos["paredes"],
-        "portal":        objetos["portal"] or POS_MERENDERO,
-        "pos_llave":     objetos["llave"],
-        "hielo":         datos["hielo"],
-        "teleportes":    datos["teleportes"],
-        "puertas_llave": objetos["puertas_llave"],
-        "puertas_placa": objetos["puertas_placa"],
-        "placas":        objetos["placas"],
-        "tile_map":      datos["tile_map"],
-        "ancho":         datos["ancho"],
-        "alto":          datos["alto"],
-        "celdas_fondo":  {},
+        "paredes":         datos["paredes"],
+        "portal":          objetos["portal"] or POS_MERENDERO,
+        "pos_llave":       objetos["llave"],
+        "hielo":           datos["hielo"],
+        "teleportes":      datos["teleportes"],
+        "puertas_llave":   objetos["puertas_llave"],
+        "puertas_placa":   objetos["puertas_placa"],
+        "placas":          objetos["placas"],
+        "cajas":           objetos["cajas"],
+        "pozos":           objetos["pozos"],
+        "controles_cinta": objetos["controles_cinta"],
+        "bloques_cinta":   objetos["bloques_cinta"],
+        "interruptores":   objetos["interruptores"],
+        "tile_map":        datos["tile_map"],
+        "ancho":           datos["ancho"],
+        "alto":            datos["alto"],
+        "celdas_fondo":    {},
     }
 
 def _generar_automatico(numero_nivel, dificultad):
     """Genera un mapa aleatorio garantizando que siempre haya camino al portal.
-    El nivel 1 siempre tiene exactamente 4 paredes fijas (consigna del PDF).
+    El nivel 1 no es aleatorio: tiene 4 paredes fijas, sin hielo ni
+    teleportes, para que la primera partida sea una entrada suave.
     A partir del nivel 3 aparece hielo y desde el 5 teleportes."""
     if numero_nivel == 1:
-        # Nivel tutorial: paredes fijas, sin hielo ni teleportes
+        # Mismas 4 paredes que usa el nivel de Tutorial (tutorial.py), que
+        # es donde vive la consigna obligatoria de "4 paredes marrones".
         paredes    = {(3, 5), (7, 3), (10, 7), (5, 1)}
         hielo      = set()
         teleportes = {}
@@ -103,18 +123,23 @@ def _generar_automatico(numero_nivel, dificultad):
         pos_llave = _generar_llave(numero_nivel, paredes)
 
     return {
-        "paredes":       paredes,
-        "portal":        POS_MERENDERO,
-        "pos_llave":     pos_llave,
-        "hielo":         hielo,
-        "teleportes":    teleportes,
-        "puertas_llave": [],
-        "puertas_placa": [],
-        "placas":        [],
-        "tile_map":      None,
-        "ancho":         COLUMNAS,
-        "alto":          FILAS,
-        "celdas_fondo":  {},
+        "paredes":         paredes,
+        "portal":          POS_MERENDERO,
+        "pos_llave":       pos_llave,
+        "hielo":           hielo,
+        "teleportes":      teleportes,
+        "puertas_llave":   [],
+        "puertas_placa":   [],
+        "placas":          [],
+        "cajas":           [],   # las mecánicas nuevas solo viven en mapas Tiled
+        "pozos":           [],
+        "controles_cinta": [],
+        "bloques_cinta":   [],
+        "interruptores":   [],
+        "tile_map":        None,
+        "ancho":           COLUMNAS,
+        "alto":            FILAS,
+        "celdas_fondo":    {},
     }
 
 def _calcular_paredes(numero_nivel, dificultad):
@@ -155,7 +180,13 @@ def _generar_llave(numero_nivel, paredes):
         key=lambda c: abs(c[0] - POS_INICIO[0]) + abs(c[1] - POS_INICIO[1]),
         reverse=True
     )
-    tope = max(1, len(candidatas) // (11 - numero_nivel))
+    # El divisor se calculó pensando en una progresión de 10 niveles: a
+    # mayor nivel, más grande el tramo de candidatas elegibles. Modo
+    # Infinito no tiene techo de nivel, así que se limita a ese rango —
+    # sin el max(1, ...) el divisor daría 0 en el nivel 11 (división por
+    # cero) y negativo de ahí en adelante.
+    divisor = max(1, 11 - numero_nivel)
+    tope = max(1, len(candidatas) // divisor)
     return random.choice(candidatas[:tope])
 
 def _hay_camino(inicio, destino, paredes):

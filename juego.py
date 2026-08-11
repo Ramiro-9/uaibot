@@ -1,6 +1,36 @@
 # juego.py
 # Vista principal del juego. Maneja toda la lógica de UAIBOT:
 # movimiento, colisiones, puntaje, animaciones y renderizado.
+#
+# NOTA DE PERFORMANCE (Fase 0.1 del plan de Ronda 2):
+# La versión de Ronda 1 dibujaba el fondo, las paredes, el hielo y el
+# sendero recorrido con un draw_texture_rect() individual por celda,
+# en cada frame (on_draw se llama ~60 veces por segundo). Eso significa
+# una llamada de dibujo por cada celda de la grilla, cada frame, aunque
+# ninguna de esas celdas haya cambiado desde el frame anterior.
+#
+# Acá se agrupan esas capas "mayormente estáticas" en arcade.SpriteList:
+#   - self.fondo_sprites   (césped/fondo de toda la grilla)
+#   - self.paredes_sprites (paredes fijas del nivel)
+#   - self.hielo_sprites   (celdas de hielo)
+#   - self.sendero_sprites (huellas del camino recorrido)
+#   - self.caja_sprites    (cajas empujables, Ronda 2 — ver más abajo)
+# Cada SpriteList se arma UNA VEZ en setup() (o se le agrega un sprite
+# puntual cuando corresponde, como en el sendero), y en on_draw() se
+# dibuja con un solo sprite_list.draw(), que Arcade resuelve como un
+# único lote en la GPU en vez de N llamadas sueltas.
+#
+# La única excepción parcial es self.caja_sprites: las cajas SÍ pueden
+# cambiar de posición durante el nivel (al empujarlas), así que su lista
+# se reconstruye por completo cada vez que ocurre un empuje — pero un
+# empuje es un evento puntual disparado por el jugador, no algo que pase
+# en cada frame, así que sigue sin costar nada comparado con la versión
+# celda por celda.
+#
+# Los elementos animados (llave, portal, teleporte, puertas) siguen con
+# su dibujo individual porque cambian de textura cuadro a cuadro y son
+# pocos por nivel — agruparlos no daría una mejora medible y complicaría
+# el código de animación sin necesidad.
 
 import arcade
 import random
@@ -20,6 +50,25 @@ FRAME_HEIGHT = 128    # alto de cada frame en píxeles
 ANCHO_TOTAL_PUERTA_LLAVE, ALTO_PUERTA_LLAVE = 937, 150
 ANCHO_TOTAL_PUERTA_PLACA, ALTO_PUERTA_PLACA = 907, 155
 CANTIDAD_FRAMES_PUERTA = 5
+
+# ── Colores de fallback (se usan si falta el archivo de sprite) ───────────────
+COLOR_PARED          = (101, 67, 33)
+COLOR_HIELO          = (135, 206, 235)
+COLOR_SENDERO        = (30, 100, 160)
+COLOR_FONDO_CLARO    = (44, 62, 80)
+COLOR_FONDO_OSCURO   = (39, 55, 70)
+COLOR_CAJA           = (160, 120, 60)
+
+
+def _dificultad_para_nivel(numero_nivel):
+    """Modo Infinito: la dificultad escala sola cada 10 niveles en vez de
+    elegirse a mano (Fase 1 del plan de Ronda 2), con tope en 'dificil'
+    para que la progresión pueda seguir indefinidamente."""
+    if numero_nivel <= 10:
+        return "facil"
+    if numero_nivel <= 20:
+        return "medio"
+    return "dificil"
 
 
 class Particula:
@@ -53,9 +102,8 @@ class Juego(arcade.View):
     """Vista principal del juego. Hereda de arcade.View para integrarse
     con el sistema de vistas de Arcade (menu → juego → menu)."""
 
-    def __init__(self, dificultad="facil", controles="flechas"):
+    def __init__(self, controles="flechas"):
         super().__init__()
-        self.dificultad = dificultad
         self.controles  = controles
         # Los assets se cargan una sola vez en __init__ para evitar
         # congelamientos al reiniciar niveles con setup()
@@ -73,6 +121,7 @@ class Juego(arcade.View):
         self.musica_player = arcade.play_sound(self.musica, volume=0.3, loop=True)
 
         self.numero_nivel  = numero_nivel
+        self.dificultad    = _dificultad_para_nivel(numero_nivel)
         self.puntaje_total = puntaje_total
         self.pasos         = 0
         self.ganado        = False
@@ -84,8 +133,12 @@ class Juego(arcade.View):
         self.animacion_portal = 0.0
         self.puntaje_nivel = 0   # puntos obtenidos en este nivel específico
 
-        # Generar o cargar los datos del nivel
-        datos = nivel_mod.generar_nivel(self.numero_nivel, self.dificultad)
+        # Generar los datos del nivel. Modo Infinito SIEMPRE usa generación
+        # procedural (usar_tiled=False), en cualquier dificultad: un modo
+        # infinito pierde sentido si repite un puñado de mapas dibujados a
+        # mano. Los .tmx de la carpeta mapas/ quedan reservados para Modo
+        # Viaje, que sí son niveles fijos diseñados uno por uno.
+        datos = nivel_mod.generar_nivel(self.numero_nivel, self.dificultad, usar_tiled=False)
         self.paredes       = datos["paredes"]
         self.portal        = datos["portal"]
         self.pos_llave     = datos["pos_llave"]
@@ -94,6 +147,10 @@ class Juego(arcade.View):
         self.puertas_llave = list(datos["puertas_llave"])
         self.puertas_placa = list(datos["puertas_placa"])
         self.placas        = list(datos["placas"])
+        # Ronda 2: cajas empujables. Es un set porque cambia de contenido
+        # (no de tamaño) cada vez que UAIBOT empuja una — a diferencia de
+        # paredes/hielo, que son fijas durante todo el nivel.
+        self.cajas          = set(datos.get("cajas", []))
         self.mapa_ancho    = datos["ancho"]
         self.mapa_alto     = datos["alto"]
 
@@ -119,6 +176,11 @@ class Juego(arcade.View):
         self.sendero         = {POS_INICIO}   # celdas ya visitadas
         self.direcciones     = {}              # dirección con que se entró a cada celda
 
+        # Capas estáticas agrupadas en SpriteList (ver nota de performance
+        # arriba del archivo). Se reconstruyen acá porque cambian con cada
+        # nivel; el sendero arranca vacío y se va llenando en _intentar_mover.
+        self._construir_capas_estaticas()
+
         self.pasos_minimos = nivel_mod.pasos_minimos(POS_INICIO, self.portal, self.paredes)
         self._crear_textos()
 
@@ -138,6 +200,111 @@ class Juego(arcade.View):
             puerta["pos"]: {"anim_frame": 0, "animando": False, "timer": 0}
             for puerta in self.puertas_placa
         }
+
+    # ── Construcción de capas estáticas (SpriteList) ──────────────────────────
+    def _crear_sprite_celda(self, path, col, fila, color_fallback, forzar_color=False):
+        """Crea un arcade.Sprite para la celda (col, fila).
+        Si existe el archivo de imagen (y no se fuerza el color), usa la
+        textura estirada al tamaño de celda. Si no, usa un cuadrado de
+        color sólido levemente más chico (mismo criterio visual que el
+        fallback por rectángulo que ya usaba spr.dibujar_celda)."""
+        x, y = self._celda_a_px(col, fila)
+        tex = None if forzar_color else spr.cargar(path)
+        if tex:
+            sprite = arcade.Sprite(tex)
+            sprite.width  = TAM_CELDA
+            sprite.height = TAM_CELDA
+        else:
+            sprite = arcade.SpriteSolidColor(TAM_CELDA - 2, TAM_CELDA - 2, color=color_fallback)
+        sprite.center_x = x
+        sprite.center_y = y
+        return sprite
+
+    def _construir_capas_estaticas(self):
+        """Arma las SpriteList de fondo, paredes y hielo para el nivel actual.
+        El sendero se deja vacío acá: se va completando celda a celda en
+        _intentar_mover a medida que UAIBOT camina (ver _agregar_huella)."""
+        # El nivel 1 fuerza colores planos en vez de sprites, tal como en
+        # la versión original (es el nivel tutorial, referencia visual fija
+        # de las 7 consignas obligatorias).
+        forzar_color_nivel_1 = (self.numero_nivel == 1)
+
+        # Fondo: solo hace falta si no hay tilemap (con tilemap, la propia
+        # escena de Tiled ya dibuja su fondo).
+        self.fondo_sprites = arcade.SpriteList()
+        if not self.tile_map:
+            for fila in range(self.mapa_alto):
+                for col in range(self.mapa_ancho):
+                    color = COLOR_FONDO_CLARO if (col + fila) % 2 == 0 else COLOR_FONDO_OSCURO
+                    self.fondo_sprites.append(
+                        self._crear_sprite_celda(SPRITE_CESPED, col, fila, color,
+                                                  forzar_color=forzar_color_nivel_1)
+                    )
+
+        # Paredes: con tilemap, la escena de Tiled ya las dibuja, así que
+        # no hace falta construir sprites propios.
+        self.paredes_sprites = arcade.SpriteList()
+        if not self.tile_map:
+            for (col, fila) in self.paredes:
+                self.paredes_sprites.append(
+                    self._crear_sprite_celda(SPRITE_PARED, col, fila, COLOR_PARED,
+                                              forzar_color=forzar_color_nivel_1)
+                )
+
+        # Hielo: sí se dibuja también en modo tilemap (igual que en la
+        # versión original, que no distinguía por self.tile_map acá).
+        self.hielo_sprites = arcade.SpriteList()
+        for (col, fila) in self.hielo:
+            self.hielo_sprites.append(
+                self._crear_sprite_celda(SPRITE_HIELO, col, fila, COLOR_HIELO)
+            )
+
+        # Sendero: arranca vacío, se completa con _agregar_huella().
+        self.sendero_sprites = arcade.SpriteList()
+
+        # Cajas: a diferencia de paredes/hielo, SÍ pueden cambiar de
+        # posición durante el nivel (al empujarlas), así que no basta con
+        # construir la SpriteList una vez: hay que poder reconstruirla.
+        # Como un empuje es un evento puntual (no pasa en cada frame), no
+        # hay costo real en rearmar la lista completa cada vez que ocurre.
+        self._reconstruir_cajas_sprites()
+
+    def _reconstruir_cajas_sprites(self):
+        """Rearma la SpriteList de cajas a partir de self.cajas.
+        Se llama al iniciar el nivel y cada vez que se empuja una caja
+        (ver _intentar_mover), nunca en on_draw ni en on_update."""
+        self.caja_sprites = arcade.SpriteList()
+        for (col, fila) in self.cajas:
+            self.caja_sprites.append(
+                self._crear_sprite_celda(SPRITE_CAJA, col, fila, (120, 85, 45))
+            )
+
+    def _agregar_huella(self, col, fila):
+        """Agrega el sprite de huella correspondiente a la celda (col, fila)
+        al sendero visual. Se llama una sola vez por celda, en el momento
+        en que UAIBOT la pisa por primera vez (no en cada frame).
+
+        La dirección de la huella depende de self.direcciones, que ya fue
+        actualizado por quien llama a esta función. Si no hay dirección
+        registrada (caso del destino de un teleporte), se usa la huella
+        "derecha" por defecto — mismo comportamiento que tenía la versión
+        original al hacer .get((col, fila), (0, 0))."""
+        if (col, fila) == POS_INICIO:
+            return   # la celda de inicio nunca tiene huella, como antes
+
+        dc, df = self.direcciones.get((col, fila), (0, 0))
+        if dc == 0 and df == 1:
+            path = SPRITE_HUELLA_ARRIBA
+        elif dc == 0 and df == -1:
+            path = SPRITE_HUELLA_ABAJO
+        elif dc == -1 and df == 0:
+            path = SPRITE_HUELLA_IZQUIERDA
+        else:
+            path = SPRITE_HUELLA_DERECHA
+
+        self.sendero_sprites.append(
+            self._crear_sprite_celda(path, col, fila, COLOR_SENDERO)
+        )
 
     # ── Carga de assets ───────────────────────────────────────────────────────
     def _cargar_assets(self):
@@ -162,9 +329,6 @@ class Juego(arcade.View):
         self.frame_actual    = 0
         self.timer_frame     = 0
         self.velocidad_frame = 8   # frames de juego entre cada frame de animación
-
-        # Imagen estática del merendero (nivel 10)
-        self.img_merendero = arcade.load_texture("assets/merendero.png")
 
         # Sonidos de acción
         self.snd_mover    = arcade.load_sound("assets/Moverse.wav")
@@ -232,20 +396,19 @@ class Juego(arcade.View):
         px = ANCHO_JUEGO
         pw = PANEL_ANCHO
         cx = px + pw // 2
-        es_ultimo = self.numero_nivel == 10
 
         self.txt_titulo    = arcade.Text("UAIBOT", cx, ALTO_VENTANA - 35,
                                           arcade.color.GOLD, 26, anchor_x="center", bold=True)
         self.txt_ofirca    = arcade.Text("OFIRCA 2026", cx, ALTO_VENTANA - 58,
                                           (52, 152, 219), 12, anchor_x="center")
-        self.txt_nivel     = arcade.Text(f"Nivel {self.numero_nivel}/10", cx, ALTO_VENTANA - 85,
+        self.txt_nivel     = arcade.Text(f"Nivel {self.numero_nivel}", cx, ALTO_VENTANA - 85,
                                           arcade.color.WHITE, 13, anchor_x="center", bold=True)
         self.txt_dificultad = arcade.Text(f"Dificultad: {self.dificultad}", cx, ALTO_VENTANA - 103,
                                            (150, 150, 150), 11, anchor_x="center")
 
         self.txt_mision_titulo = arcade.Text("MISION", px + 16, ALTO_VENTANA - 128,
                                               arcade.color.GOLD, 11, bold=True)
-        mision = "Lleva las donaciones\nal merendero." if es_ultimo else "Llega al portal\npara avanzar."
+        mision = "Llega al portal\npara avanzar."
         if self.dificultad == "dificil" and self.pos_llave:
             mision += "\nRecoge la llave\nprimero con E."
         self.txt_mision = arcade.Text(mision, px + 16, ALTO_VENTANA - 148,
@@ -285,13 +448,15 @@ class Juego(arcade.View):
         self.txt_reiniciar  = arcade.Text("R=nivel  N=inicio  ESC=menu",
                                            cx, 16, (120, 120, 120), 9, anchor_x="center")
 
-        # Textos para los overlays de victoria y derrota
+        # Textos para los overlays de victoria y derrota. Modo Infinito no
+        # tiene "nivel final": cada nivel completado muestra el mismo
+        # mensaje y sigue avanzando (ver on_update).
         self.txt_victoria = arcade.Text(
-            "¡NIVEL COMPLETADO!" if self.numero_nivel < 10 else "¡MISION CUMPLIDA!",
+            "¡NIVEL COMPLETADO!",
             ANCHO_JUEGO // 2, ALTO_VENTANA // 2 + 30,
             arcade.color.GOLD, 30, anchor_x="center", anchor_y="center", bold=True)
         self.txt_victoria_sub = arcade.Text(
-            "Continuando..." if self.numero_nivel < 10 else "Presiona N para jugar de nuevo",
+            "Continuando...",
             ANCHO_JUEGO // 2, ALTO_VENTANA // 2 - 20,
             (200, 200, 200), 14, anchor_x="center", anchor_y="center")
         self.txt_perdido = arcade.Text("¡SIN PASOS!",
@@ -361,7 +526,11 @@ class Juego(arcade.View):
     def _intentar_mover(self, dc, df):
         """Intenta mover a UAIBOT en la dirección (dc, df).
         Verifica límites, paredes y sendero antes de confirmar el movimiento.
-        También procesa hielo, teleportes, placas y condición de victoria."""
+        También procesa hielo, teleportes, placas y condición de victoria.
+
+        Cada vez que una celda nueva se suma a self.sendero, se llama a
+        _agregar_huella() para sumar el sprite correspondiente UNA sola
+        vez (no se recalcula toda la lista en cada frame de dibujo)."""
         if self.ganado or self.perdido:
             return
 
@@ -378,15 +547,35 @@ class Juego(arcade.View):
             arcade.play_sound(self.snd_no_mover)
             return
 
+        # Caja empujable (Ronda 2, solo existe en mapas Tiled): si el
+        # destino tiene una caja, hay que intentar empujarla UNA celda
+        # más allá en la misma dirección antes de poder ocupar su lugar.
+        if (nc, nf) in self.cajas:
+            nc_caja = nc + dc
+            nf_caja = nf + df
+            fuera_de_mapa   = not (0 <= nc_caja < self.mapa_ancho and 0 <= nf_caja < self.mapa_alto)
+            celda_ocupada   = (nc_caja, nf_caja) in self.paredes or (nc_caja, nf_caja) in self.cajas
+            if fuera_de_mapa or celda_ocupada:
+                # No hay lugar para la caja del otro lado: ni la caja ni
+                # UAIBOT se mueven.
+                arcade.play_sound(self.snd_no_mover)
+                return
+            self.cajas.discard((nc, nf))
+            self.cajas.add((nc_caja, nf_caja))
+            self._reconstruir_cajas_sprites()
+
         # Verificar sendero ya pisado (no se puede volver por donde pasó)
         if (nc, nf) in self.sendero:
             arcade.play_sound(self.snd_no_mover)
             return
 
-        # Movimiento válido
+        # Movimiento válido: se registra la dirección ANTES de agregar la
+        # huella, porque _agregar_huella lee self.direcciones para saber
+        # qué sprite de huella (arriba/abajo/izquierda/derecha) usar.
         self.col, self.fila = nc, nf
         self.direcciones[(nc, nf)] = (dc, df)
         self.sendero.add((nc, nf))
+        self._agregar_huella(nc, nf)
         self.pasos += 1
         self.txt_pasos.value = str(self.pasos)
         self.caminando = True
@@ -402,15 +591,20 @@ class Juego(arcade.View):
                 self.col, self.fila = nc2, nf2
                 self.direcciones[(nc2, nf2)] = (dc, df)
                 self.sendero.add((nc2, nf2))
+                self._agregar_huella(nc2, nf2)
                 self.pasos += 1
                 self.txt_pasos.value = str(self.pasos)
 
-        # Teleporte: si UAIBOT llega a una celda de teleporte lo mueve al destino
+        # Teleporte: si UAIBOT llega a una celda de teleporte lo mueve al destino.
+        # No se registra dirección para el destino (igual que en la versión
+        # original), así que _agregar_huella cae en su valor por defecto
+        # (huella "derecha") para esa celda.
         if (self.col, self.fila) in self.teleportes:
             destino = self.teleportes[(self.col, self.fila)]
             if destino not in self.sendero:
                 self.col, self.fila = destino
                 self.sendero.add(destino)
+                self._agregar_huella(*destino)
                 self.pasos += 1
                 self.txt_pasos.value = str(self.pasos)
 
@@ -428,17 +622,26 @@ class Juego(arcade.View):
         if self.dificultad in ("medio", "dificil") and self.pasos_minimos:
             if self.pasos >= self.pasos_minimos * 2:
                 self.perdido = True
+                # Es el "fin de partida" natural de Infinito (no tiene un
+                # nivel final): se lee el récord una sola vez acá, no en
+                # cada frame de _dibujar_overlay_perdido.
+                self.mejor_infinito = guardado.cargar()["infinito"]
                 return
 
         # Verificar si llegó al portal
         if (self.col, self.fila) == self.portal:
-            # En difícil necesita la llave antes de entrar al portal
+            # En difícil necesita la llave antes de entrar al portal.
+            # Si no la tiene, se deshace el movimiento: se saca la huella
+            # recién agregada además de revertir posición/sendero/pasos,
+            # para que la capa visual quede consistente con el estado real.
             if self.dificultad == "dificil" and self.pos_llave and not self.tiene_llave:
                 arcade.play_sound(self.snd_no_mover)
                 self.col -= dc
                 self.fila -= df
                 self.sendero.discard((nc, nf))
                 self.direcciones.pop((nc, nf), None)
+                if self.sendero_sprites:
+                    self.sendero_sprites.pop()
                 self.pasos -= 1
                 self.txt_pasos.value = str(self.pasos)
                 return
@@ -451,6 +654,7 @@ class Juego(arcade.View):
         self.puntaje_total += self.puntaje_nivel
         self.txt_puntaje.value = str(self.puntaje_total)
         guardado.actualizar_highscore(self.puntaje_total)
+        guardado.actualizar_highscore_infinito(self.puntaje_total, self.numero_nivel)
         arcade.play_sound(self.snd_victoria)
         for _ in range(80):
             self.particulas.append(Particula())
@@ -498,11 +702,9 @@ class Juego(arcade.View):
                 if hasattr(self, 'musica_player') and self.musica_player:
                     arcade.stop_sound(self.musica_player)
                     self.musica_player = None
-                if self.numero_nivel < 10:
-                    self.setup(self.numero_nivel + 1, self.puntaje_total)
-                else:
-                    from menu import Menu
-                    self.window.show_view(Menu())
+                # Modo Infinito: no hay techo de nivel, siempre se sigue.
+                # La partida solo termina si el jugador pierde o sale con ESC.
+                self.setup(self.numero_nivel + 1, self.puntaje_total)
 
         # Avanzar animación de elementos del mapa (llave, portal, teleporte)
         self.timer_elementos += 1
@@ -559,9 +761,9 @@ class Juego(arcade.View):
             with self.camara.activate():
                 if self.escena:
                     self.escena.draw()   # dibuja fondo y obstáculos del tilemap
-                self._dibujar_sendero()
-                self._dibujar_paredes()
-                self._dibujar_hielo()
+                self.sendero_sprites.draw()
+                self.hielo_sprites.draw()
+                self.caja_sprites.draw()
                 self._dibujar_teleportes()
                 self._dibujar_placas()
                 self._dibujar_puertas_llave()
@@ -570,11 +772,14 @@ class Juego(arcade.View):
                 self._dibujar_llave()
                 self._dibujar_uaibot()
         else:
-            # Modo sin cámara (generación automática, modo fácil)
-            self._dibujar_grilla()
-            self._dibujar_sendero()
-            self._dibujar_paredes()
-            self._dibujar_hielo()
+            # Modo sin cámara (generación automática, modo fácil).
+            # Fondo, paredes, hielo y sendero son un solo draw() cada uno
+            # (SpriteList) en vez de un draw_texture_rect por celda.
+            self.fondo_sprites.draw()
+            self.sendero_sprites.draw()
+            self.paredes_sprites.draw()
+            self.hielo_sprites.draw()
+            self.caja_sprites.draw()
             self._dibujar_teleportes()
             self._dibujar_placas()
             self._dibujar_puertas_llave()
@@ -598,65 +803,11 @@ class Juego(arcade.View):
         y = fila * TAM_CELDA + TAM_CELDA // 2
         return x, y
 
-    def _dibujar_grilla(self):
-        """Dibuja el fondo de la grilla celda por celda.
-        El nivel 1 usa colores planos; los demás usan el sprite de césped."""
-        for fila in range(self.mapa_alto):
-            for col in range(self.mapa_ancho):
-                if self.numero_nivel == 1 or not spr.dibujar_celda(SPRITE_CESPED, col, fila, TAM_CELDA):
-                    color = (44, 62, 80) if (col + fila) % 2 == 0 else (39, 55, 70)
-                    arcade.draw_lrbt_rectangle_filled(
-                        col * TAM_CELDA + 1, col * TAM_CELDA + TAM_CELDA - 1,
-                        fila * TAM_CELDA + 1, fila * TAM_CELDA + TAM_CELDA - 1,
-                        color
-                    )
-
-    def _dibujar_sendero(self):
-        """Dibuja las huellas direccionales en las celdas ya visitadas por UAIBOT."""
-        for (col, fila) in self.sendero:
-            if (col, fila) == POS_INICIO:
-                continue
-            dc, df = self.direcciones.get((col, fila), (0, 0))
-            if dc == 0 and df == 1:
-                path = SPRITE_HUELLA_ARRIBA
-            elif dc == 0 and df == -1:
-                path = SPRITE_HUELLA_ABAJO
-            elif dc == -1 and df == 0:
-                path = SPRITE_HUELLA_IZQUIERDA
-            else:
-                path = SPRITE_HUELLA_DERECHA
-            if not spr.dibujar_celda(path, col, fila, TAM_CELDA):
-                arcade.draw_lrbt_rectangle_filled(
-                    col * TAM_CELDA + 1, col * TAM_CELDA + TAM_CELDA - 1,
-                    fila * TAM_CELDA + 1, fila * TAM_CELDA + TAM_CELDA - 1,
-                    (30, 100, 160)
-                )
-
-    def _dibujar_paredes(self):
-        """Dibuja las paredes con sprite o color marrón de fallback.
-        En modo tilemap se omite porque la escena ya las dibuja."""
-        if self.tile_map:
-            return
-        for (col, fila) in self.paredes:
-            if self.numero_nivel == 1 or not spr.dibujar_celda(SPRITE_PARED, col, fila, TAM_CELDA):
-                arcade.draw_lrbt_rectangle_filled(
-                    col * TAM_CELDA + 1, col * TAM_CELDA + TAM_CELDA - 1,
-                    fila * TAM_CELDA + 1, fila * TAM_CELDA + TAM_CELDA - 1,
-                    (101, 67, 33)
-                )
-
-    def _dibujar_hielo(self):
-        """Dibuja las celdas de hielo (celeste) que deslizan a UAIBOT."""
-        for (col, fila) in self.hielo:
-            if not spr.dibujar_celda(SPRITE_HIELO, col, fila, TAM_CELDA):
-                arcade.draw_lrbt_rectangle_filled(
-                    col * TAM_CELDA + 1, col * TAM_CELDA + TAM_CELDA - 1,
-                    fila * TAM_CELDA + 1, fila * TAM_CELDA + TAM_CELDA - 1,
-                    (135, 206, 235)
-                )
-
     def _dibujar_teleportes(self):
-        """Dibuja los teleportes con su animación en loop."""
+        """Dibuja los teleportes con su animación en loop.
+        Son pocos por nivel y cambian de textura cada frame, así que se
+        mantienen con dibujo individual en vez de SpriteList (ver nota de
+        performance al inicio del archivo)."""
         for (col, fila) in self.teleportes:
             x, y  = self._celda_a_px(col, fila)
             frame = self.frames_teleporte[self.frame_elementos % len(self.frames_teleporte)]
@@ -696,22 +847,14 @@ class Juego(arcade.View):
             arcade.draw_texture_rect(frame, arcade.XYWH(x, y, TAM_CELDA, TAM_CELDA))
 
     def _dibujar_portal(self):
-        """Dibuja el portal con animación pulsante.
-        En el nivel 10 muestra la imagen del merendero en vez del portal."""
+        """Dibuja el portal con animación pulsante. Modo Infinito no tiene
+        un nivel final, así que siempre es el portal animado -la imagen
+        fija del merendero (consigna obligatoria de Ronda 1) ya se
+        cumple en Tutorial, que sí tiene un final real."""
         col, fila = self.portal
         x, y      = self._celda_a_px(col, fila)
-        es_ultimo = self.numero_nivel == 10
-
-        if es_ultimo:
-            arcade.draw_lrbt_rectangle_filled(
-                col * TAM_CELDA + 1, col * TAM_CELDA + TAM_CELDA - 1,
-                fila * TAM_CELDA + 1, fila * TAM_CELDA + TAM_CELDA - 1,
-                (192, 57, 43, 180)
-            )
-            arcade.draw_texture_rect(self.img_merendero, arcade.XYWH(x, y, TAM_CELDA, TAM_CELDA))
-        else:
-            frame = self.frames_portal[self.frame_elementos % len(self.frames_portal)]
-            arcade.draw_texture_rect(frame, arcade.XYWH(x, y, TAM_CELDA, TAM_CELDA))
+        frame = self.frames_portal[self.frame_elementos % len(self.frames_portal)]
+        arcade.draw_texture_rect(frame, arcade.XYWH(x, y, TAM_CELDA, TAM_CELDA))
 
     def _dibujar_llave(self):
         """Dibuja la llave animada si UAIBOT todavía no la recogió."""
@@ -779,7 +922,16 @@ class Juego(arcade.View):
                     anchor_x="center", anchor_y="center", bold=True).draw()
 
     def _dibujar_overlay_perdido(self):
-        """Overlay de derrota cuando UAIBOT supera el límite de pasos."""
+        """Overlay de derrota cuando UAIBOT supera el límite de pasos. Es
+        el "fin de partida" natural de Infinito, así que muestra el mejor
+        puntaje/nivel guardado junto al intento actual."""
         arcade.draw_lrbt_rectangle_filled(0, ANCHO_JUEGO, 0, ALTO_VENTANA, (0, 0, 0, 180))
         self.txt_perdido.draw()
         self.txt_perdido_sub.draw()
+        if hasattr(self, "mejor_infinito"):
+            arcade.Text(
+                f"Mejor puntaje: {self.mejor_infinito['puntaje_total']}   "
+                f"Mejor nivel: {self.mejor_infinito['nivel_maximo']}",
+                ANCHO_JUEGO // 2, ALTO_VENTANA // 2 - 70,
+                arcade.color.GOLD, 12, anchor_x="center", anchor_y="center"
+            ).draw()

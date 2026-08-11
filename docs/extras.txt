@@ -1,0 +1,105 @@
+EXTRAS.TXT — Funcionalidades agregadas más allá de las consignas
+Proyecto: UAIBOT — OFIRCA 2026, Desafío Ronda 1
+================================================================
+
+Además de cumplir las 7 consignas obligatorias del desafío (contador de
+pasos, imagen en la celda del merendero, sonido al moverse, no repetir
+camino recorrido, 4 paredes marrones, reinicio con R en cualquier
+momento, animación al ganar), el equipo incorporó las siguientes
+funcionalidades adicionales:
+
+1. MENÚ PRINCIPAL GRÁFICO
+   Menú con imagen de fondo ilustrada (ver prompt.txt), botones con
+   estilo tipo ribbon, navegable tanto por teclado (flechas/ENTER) como
+   por mouse (hover + click).
+
+2. PROGRESIÓN DE 10 NIVELES
+   El juego no se resuelve en un único nivel: hay una secuencia de 10
+   niveles con dificultad creciente, y puntaje acumulado entre niveles.
+
+3. SISTEMA DE DIFICULTAD (fácil / medio / difícil)
+   Configurable desde el menú y persistente entre partidas. Cada
+   dificultad cambia la cantidad de obstáculos, si hay límite de pasos,
+   y si aparece la mecánica de llave.
+
+4. GENERACIÓN PROCEDURAL DE MAPAS CON CAMINO GARANTIZADO
+   Los niveles no vienen todos prearmados: se generan paredes al azar y
+   se valida con un algoritmo de búsqueda (BFS) que siempre exista un
+   camino posible desde el inicio hasta el merendero antes de aceptar el
+   mapa generado.
+
+5. SOPORTE DE MAPAS EXTERNOS HECHOS EN TILED (.tmx)
+   Para dificultad media y difícil, los niveles pueden cargarse desde
+   archivos .tmx diseñados en el editor Tiled, con cámara que sigue al
+   jugador en mapas más grandes que la pantalla.
+
+6. GUARDADO PERSISTENTE (JSON)
+   Highscore, controles preferidos y última dificultad elegida se
+   guardan en guardado.json y se recuperan al reabrir el juego.
+
+7. CONTROLES CONFIGURABLES (flechas o WASD)
+   Elegibles desde el menú, con persistencia entre partidas.
+
+8. SISTEMA DE PUNTAJE POR EFICIENCIA
+   Se compara la cantidad de pasos usados contra el mínimo posible
+   (calculado también con BFS) para asignar un puntaje de 1 a 10 por
+   nivel completado.
+
+9. LÍMITE DE PASOS EN DIFICULTAD MEDIA/DIFÍCIL
+   Si el jugador supera el doble del recorrido mínimo, pierde el nivel
+   (mensaje "¡SIN PASOS!" con opción de reiniciar).
+
+10. MECÁNICA DE HIELO
+    Ciertas celdas hacen que UAIBOT deslice una celda extra en la misma
+    dirección del movimiento.
+
+11. MECÁNICA DE TELETRANSPORTE VINCULADO
+    Pares de celdas que trasladan a UAIBOT de una a otra, con animación
+    propia.
+
+12. MECÁNICA DE LLAVE + PUERTAS CON LLAVE
+    En dificultad difícil, UAIBOT debe recoger una llave (tecla E) antes
+    de poder cruzar el portal; al recogerla se abren automáticamente
+    todas las puertas con llave del nivel.
+
+13. MECÁNICA DE PUERTAS CON PLACA DE PRESIÓN
+    Puzzle de presión: pisar una placa abre su puerta vinculada
+    (vinculación por id_puerta configurada en Tiled).
+
+14. ANIMACIONES DE APERTURA EN LAS PUERTAS
+    Tanto las puertas con llave como las puertas con placa tienen una
+    animación de 5 frames que se reproduce una vez al abrirse (de
+    cerrada a abierta), no un simple cambio instantáneo de estado.
+
+15. ANIMACIÓN DE UAIBOT CAMINANDO
+    Sprite animado con spritesheets separados de Idle (quieto) y Walk
+    (caminando), 6 frames cada uno, más movimiento interpolado
+    suavemente entre celdas (no salto instantáneo).
+
+16. ANIMACIONES IDLE EN LOOP DE LLAVE, PORTAL Y TELEPORTE
+    Estos tres elementos no son sprites estáticos: rotan sus frames en
+    loop constantemente para dar sensación de vida en el escenario.
+
+17. HUELLAS DIRECCIONALES
+    El camino recorrido se marca con 4 sprites distintos según la
+    dirección en la que UAIBOT caminó por esa celda (arriba, abajo,
+    izquierda, derecha), en vez de un solo color/sprite genérico.
+
+18. MÚSICA DE FONDO EN LOOP
+    Pista musical durante el juego, que se detiene correctamente al
+    volver al menú o al cambiar de nivel.
+
+19. ANUNCIO DE NIVEL CON FADE-IN
+    Al empezar cada nivel se muestra un overlay con el número de nivel y
+    la dificultad, que se desvanece progresivamente (fade) durante los
+    primeros 2 segundos.
+
+20. SELECCIÓN DE MENÚ POR MOUSE
+    Además de la navegación por teclado, las opciones del menú principal
+    pueden elegirse pasando el cursor y haciendo click, con el mismo
+    resaltado visual que la navegación por teclado.
+
+================================================================
+Nota: todas estas funcionalidades están sujetas a que las 7 consignas
+obligatorias se cumplan primero (cumplido en nivel 1 / dificultad fácil,
+que es el nivel fijo de referencia), tal como indica el enunciado.
