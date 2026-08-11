@@ -104,3 +104,46 @@ de las consignas se distingan con claridad.
 - Corrección: la ubicación de la llave dividía por `11 - nivel`,
   fórmula que asumía un máximo de 10 niveles y que fallaba al llegar
   el Modo Infinito a niveles más altos.
+
+## [1.5] — Modo Viaje
+
+Se suma la campaña del juego, el tercer modo jugable. Con esto los mapas
+diseñados a mano en Tiled vuelven a tener un modo donde jugarse: los 10
+de dificultad media son la campaña de Viaje, y los 10 de dificultad
+difícil quedan reservados para el Modo Multijugador.
+
+### Modo Viaje (`viaje.py`, archivo nuevo)
+
+- Campaña de 10 niveles fijos, diseñados a mano en Tiled, con final: al
+  completar el último se muestra una pantalla de cierre con el tiempo
+  total y el puntaje, en vez de seguir de largo como el Modo Infinito.
+- Desbloqueo de los personajes de la familia de UAIBOT a medida que se
+  avanza: UAIBOTINO al superar el nivel 2, UAIBOTA en el 5 y UAIBOTINA
+  en el 8, con aviso en pantalla y guardado persistente.
+- Cronómetro de la partida completa: acumula entre niveles y se detiene
+  al terminar la campaña.
+- Sin límite de pasos, a diferencia del Modo Infinito: la campaña está
+  pensada para recorrerse y explorarse, no como prueba de eficiencia.
+
+### Reorganización interna
+
+`Viaje` hereda de `Juego` para reutilizar todo el motor que ya
+compartían: movimiento en grilla, colisiones, sendero, cámara para mapas
+más anchos que la pantalla, animaciones y panel lateral. Para eso se
+extrajeron cuatro puntos de extensión en `juego.py` —de dónde salen los
+datos del nivel, si hay límite de pasos, qué pasa al completar un nivel
+y qué se persiste—, cada uno con el comportamiento del Modo Infinito
+como implementación por defecto. El Modo Infinito no cambia en nada.
+
+### Correcciones
+
+- El cálculo del recorrido mínimo recorría la grilla con las medidas de
+  los mapas procedurales (14×10), pero los mapas de Tiled son de 28×10:
+  la búsqueda nunca pasaba de la mitad del mapa y daba el portal por
+  inalcanzable. Ahora recibe el tamaño real del mapa.
+- Ese mismo cálculo seguía fallando en los mapas con puertas, porque las
+  puertas empiezan cerradas y cuentan como pared. Ahora se las descuenta
+  al estimar el recorrido, asumiendo que el jugador las va a abrir con
+  la llave o la placa de presión.
+- En el panel lateral, el bloque de controles se superponía con el
+  recordatorio del pie.
