@@ -14,10 +14,8 @@ en la carpeta del proyecto).
 ## Instalación
 
 ```bash
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-python main.py
+uv sync
+uv run python main.py
 ```
 
 ## Controles
