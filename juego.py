@@ -100,7 +100,21 @@ class Particula:
 
 class Juego(arcade.View):
     """Vista principal del juego. Hereda de arcade.View para integrarse
-    con el sistema de vistas de Arcade (menu → juego → menu)."""
+    con el sistema de vistas de Arcade (menu → juego → menu).
+
+    Esta clase cumple dos papeles a la vez:
+
+    1. Es la implementación del **Modo Infinito**: sus métodos, tal como
+       están acá, generan niveles procedurales con dificultad que escala
+       sola y sin techo de nivel.
+    2. Es el **motor compartido** del que hereda el Modo Viaje
+       (`viaje.py`), que reutiliza todo el movimiento en grilla, las
+       colisiones, la cámara, las animaciones y el panel lateral.
+
+    Los cuatro métodos marcados abajo como "costuras" son los puntos
+    donde Viaje se desvía del comportamiento de Infinito. Todo lo demás
+    es común a los dos modos, y por eso se hereda en vez de duplicarse.
+    """
 
     def __init__(self, controles="flechas"):
         super().__init__()
@@ -121,7 +135,7 @@ class Juego(arcade.View):
         self.musica_player = arcade.play_sound(self.musica, volume=0.3, loop=True)
 
         self.numero_nivel  = numero_nivel
-        self.dificultad    = _dificultad_para_nivel(numero_nivel)
+        self.dificultad    = self._dificultad_del_nivel(numero_nivel)
         self.puntaje_total = puntaje_total
         self.pasos         = 0
         self.ganado        = False
@@ -133,12 +147,7 @@ class Juego(arcade.View):
         self.animacion_portal = 0.0
         self.puntaje_nivel = 0   # puntos obtenidos en este nivel específico
 
-        # Generar los datos del nivel. Modo Infinito SIEMPRE usa generación
-        # procedural (usar_tiled=False), en cualquier dificultad: un modo
-        # infinito pierde sentido si repite un puñado de mapas dibujados a
-        # mano. Los .tmx de la carpeta mapas/ quedan reservados para Modo
-        # Viaje, que sí son niveles fijos diseñados uno por uno.
-        datos = nivel_mod.generar_nivel(self.numero_nivel, self.dificultad, usar_tiled=False)
+        datos = self._obtener_datos_nivel()
         self.paredes       = datos["paredes"]
         self.portal        = datos["portal"]
         self.pos_llave     = datos["pos_llave"]
@@ -181,13 +190,64 @@ class Juego(arcade.View):
         # nivel; el sendero arranca vacío y se va llenando en _intentar_mover.
         self._construir_capas_estaticas()
 
-        self.pasos_minimos = nivel_mod.pasos_minimos(POS_INICIO, self.portal, self.paredes)
+        # Recorrido mínimo estimado hasta el portal. Dos detalles:
+        #  - Se le pasan las dimensiones REALES del mapa, porque los de
+        #    Tiled son más anchos que la pantalla y con el tamaño por
+        #    defecto el BFS ni siquiera llegaría a la mitad derecha.
+        #  - Las puertas arrancan cerradas y por eso están dentro de
+        #    self.paredes, pero el jugador las va a abrir con la llave o
+        #    la placa. Se las descuenta para el cálculo: si no, en los
+        #    mapas con puertas el portal daría siempre inalcanzable.
+        puertas = set(self.puertas_llave) | {p["pos"] for p in self.puertas_placa}
+        self.pasos_minimos = nivel_mod.pasos_minimos(
+            POS_INICIO, self.portal, self.paredes - puertas,
+            self.mapa_ancho, self.mapa_alto
+        )
         self._crear_textos()
 
         # Posición en píxeles para el movimiento suave
         self.px_x, self.px_y    = self._celda_a_px(*POS_INICIO)
         self.moviendose         = False
         self.velocidad_movimiento = 10   # píxeles por frame
+
+    # ── Costuras: lo que cada modo hace distinto ──────────────────────────────
+    # Estos cuatro métodos son los únicos puntos donde el Modo Viaje
+    # (viaje.py) se aparta de lo que hace Infinito. Tal como están escritos
+    # acá definen el comportamiento de Infinito; Viaje los sobrescribe.
+
+    def _dificultad_del_nivel(self, numero_nivel):
+        """Qué dificultad le toca a este número de nivel.
+        Infinito la escala sola; Viaje usa siempre la misma."""
+        return _dificultad_para_nivel(numero_nivel)
+
+    def _obtener_datos_nivel(self):
+        """De dónde salen los datos del nivel actual.
+
+        Infinito genera SIEMPRE de forma procedural (usar_tiled=False), en
+        cualquier dificultad: un modo infinito pierde sentido si repite un
+        puñado de mapas dibujados a mano. Los .tmx de la carpeta mapas/
+        quedan para Viaje y Multijugador, que sí son niveles fijos."""
+        return nivel_mod.generar_nivel(self.numero_nivel, self.dificultad, usar_tiled=False)
+
+    def _hay_que_perder_por_pasos(self):
+        """Si el nivel se pierde por haber gastado demasiados pasos.
+        En Infinito hay límite desde la dificultad media (el doble del
+        recorrido mínimo); Viaje no tiene límite."""
+        if self.dificultad in ("medio", "dificil") and self.pasos_minimos:
+            return self.pasos >= self.pasos_minimos * 2
+        return False
+
+    def _avanzar_de_nivel(self):
+        """Qué pasa después de completar un nivel.
+        Infinito no tiene techo: siempre sigue al siguiente. La partida
+        solo termina si el jugador pierde o sale con ESC."""
+        self.setup(self.numero_nivel + 1, self.puntaje_total)
+
+    def _guardar_progreso(self):
+        """Qué se persiste al completar un nivel.
+        Infinito guarda su highscore doble (puntaje total + nivel más alto
+        alcanzado); Viaje guarda el progreso y desbloquea personajes."""
+        guardado.actualizar_highscore_infinito(self.puntaje_total, self.numero_nivel)
 
     def _inicializar_estado_puertas(self):
         """Crea el estado de animación inicial para todas las puertas del nivel.
@@ -443,7 +503,9 @@ class Juego(arcade.View):
         controles_texto = "WASD: mover\nR: reiniciar nivel\nN: reiniciar juego\nESC: menu" \
                           if self.controles == "wasd" else \
                           "Flechas: mover\nR: reiniciar nivel\nN: reiniciar juego\nESC: menu"
-        self.txt_controles  = arcade.Text(controles_texto, px + 16, ALTO_VENTANA - 540,
+        # A -505 (y no más abajo) para que las 4 líneas del bloque no se
+        # superpongan con el recordatorio del pie del panel.
+        self.txt_controles  = arcade.Text(controles_texto, px + 16, ALTO_VENTANA - 505,
                                            (200, 200, 200), 10, multiline=True, width=pw - 32)
         self.txt_reiniciar  = arcade.Text("R=nivel  N=inicio  ESC=menu",
                                            cx, 16, (120, 120, 120), 9, anchor_x="center")
@@ -618,15 +680,15 @@ class Juego(arcade.View):
                         if puerta["pos"] in self.anim_puertas_placa:
                             self.anim_puertas_placa[puerta["pos"]]["animando"] = True
 
-        # Límite de pasos en medio y difícil (doble del mínimo)
-        if self.dificultad in ("medio", "dificil") and self.pasos_minimos:
-            if self.pasos >= self.pasos_minimos * 2:
-                self.perdido = True
-                # Es el "fin de partida" natural de Infinito (no tiene un
-                # nivel final): se lee el récord una sola vez acá, no en
-                # cada frame de _dibujar_overlay_perdido.
-                self.mejor_infinito = guardado.cargar()["infinito"]
-                return
+        # Límite de pasos (ver _hay_que_perder_por_pasos: Infinito lo tiene
+        # desde dificultad media, Viaje no lo usa).
+        if self._hay_que_perder_por_pasos():
+            self.perdido = True
+            # Es el "fin de partida" natural de Infinito (no tiene un
+            # nivel final): se lee el récord una sola vez acá, no en
+            # cada frame de _dibujar_overlay_perdido.
+            self.mejor_infinito = guardado.cargar()["infinito"]
+            return
 
         # Verificar si llegó al portal
         if (self.col, self.fila) == self.portal:
@@ -654,7 +716,7 @@ class Juego(arcade.View):
         self.puntaje_total += self.puntaje_nivel
         self.txt_puntaje.value = str(self.puntaje_total)
         guardado.actualizar_highscore(self.puntaje_total)
-        guardado.actualizar_highscore_infinito(self.puntaje_total, self.numero_nivel)
+        self._guardar_progreso()
         arcade.play_sound(self.snd_victoria)
         for _ in range(80):
             self.particulas.append(Particula())
@@ -702,9 +764,7 @@ class Juego(arcade.View):
                 if hasattr(self, 'musica_player') and self.musica_player:
                     arcade.stop_sound(self.musica_player)
                     self.musica_player = None
-                # Modo Infinito: no hay techo de nivel, siempre se sigue.
-                # La partida solo termina si el jugador pierde o sale con ESC.
-                self.setup(self.numero_nivel + 1, self.puntaje_total)
+                self._avanzar_de_nivel()
 
         # Avanzar animación de elementos del mapa (llave, portal, teleporte)
         self.timer_elementos += 1

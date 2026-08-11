@@ -7,18 +7,19 @@
 # Controles — y se elimina la selección manual de dificultad (el Modo
 # Infinito la reemplaza escalando solo, ver Fase 1 del plan).
 #
-# De estas 6 entradas, Tutorial, Infinito y Controles llevan a una
+# De estas 6 entradas, Tutorial, Infinito, Viaje y Controles llevan a una
 # pantalla funcional:
 #   - Tutorial (tutorial.py) es el nivel único y fijo donde se cumplen
 #     las 13 consignas graduadas de OFIRCA (7 de Ronda 1 + 6 de Ronda 2)
 #     — vista propia, autocontenida, sin dificultad ni mapas de Tiled.
-#   - Infinito (juego.py) es el motor de Juego de Ronda 1 (dificultad,
-#     Tiled, progresión) pero sin selección manual de dificultad ni
-#     techo de nivel: escala sola cada 10 niveles hasta tope "dificil"
-#     y sigue indefinidamente hasta que el jugador pierde o sale.
-# Las otras tres entradas (Viaje, Multijugador, Inventario/Bestiario)
-# muestran una pantalla "Próximamente" (clase Placeholder, al final del
-# archivo) hasta que se implementen en sus fases correspondientes.
+#   - Infinito (juego.py) genera niveles procedurales sin techo, con la
+#     dificultad escalando sola cada 10 niveles hasta tope "dificil".
+#   - Viaje (viaje.py) es la campaña: 10 niveles fijos diseñados en Tiled
+#     (los de dificultad media), con cronómetro y desbloqueo de los
+#     personajes de la familia de UAIBOT.
+# Las otras dos entradas (Multijugador e Inventario/Bestiario) muestran
+# una pantalla "Próximamente" (clase Placeholder, al final del archivo)
+# hasta que se implementen en sus fases correspondientes.
 
 import arcade
 
@@ -30,7 +31,7 @@ OPCIONES = ["Viaje", "Infinito", "Multijugador", "Tutorial", "Inventario / Besti
 # Modos que todavía no tienen pantalla propia: al seleccionarlos se
 # muestra el Placeholder en vez de iniciar algo. Se van sacando de esta
 # lista a medida que cada modo se implementa en las fases siguientes.
-MODOS_PENDIENTES = {"Viaje", "Multijugador", "Inventario / Bestiario"}
+MODOS_PENDIENTES = {"Multijugador", "Inventario / Bestiario"}
 
 
 class Menu(arcade.View):
@@ -124,6 +125,8 @@ class Menu(arcade.View):
             self._iniciar_tutorial()
         elif opcion == "Infinito":
             self._iniciar_infinito()
+        elif opcion == "Viaje":
+            self._iniciar_viaje()
         elif opcion == "Controles":
             self.submenu = "controles"
         elif opcion in MODOS_PENDIENTES:
@@ -187,6 +190,14 @@ class Menu(arcade.View):
         juego.setup()
         self.window.show_view(juego)
 
+    def _iniciar_viaje(self):
+        """Arranca la campaña (viaje.py): 10 niveles fijos diseñados en
+        Tiled, con cronómetro y desbloqueo de personajes."""
+        from viaje import Viaje
+        vista = Viaje(controles=self.datos.get("controles", "flechas"))
+        vista.setup()
+        self.window.show_view(vista)
+
     # ── Dibujo ────────────────────────────────────────────────────────────────
     def on_draw(self):
         self.window.clear((20, 28, 36))
@@ -231,7 +242,7 @@ class Menu(arcade.View):
 
 class Placeholder(arcade.View):
     """Pantalla temporal para los modos que todavía no tienen contenido
-    propio (Viaje, Multijugador, Inventario/Bestiario).
+    propio (Multijugador, Inventario/Bestiario).
 
     Existe solo para que la navegación del menú funcione de punta a
     punta desde ya (objetivo de la Fase 0.4); cada entrada de

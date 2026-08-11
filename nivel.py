@@ -189,9 +189,16 @@ def _generar_llave(numero_nivel, paredes):
     tope = max(1, len(candidatas) // divisor)
     return random.choice(candidatas[:tope])
 
-def _hay_camino(inicio, destino, paredes):
+def _hay_camino(inicio, destino, paredes, ancho=COLUMNAS, alto=FILAS):
     """BFS: verifica si existe al menos un camino entre inicio y destino
-    sin cruzar paredes. Garantiza que el nivel siempre sea resoluble."""
+    sin cruzar paredes. Garantiza que el nivel siempre sea resoluble.
+
+    `ancho` y `alto` son las dimensiones de la grilla a recorrer. Por
+    defecto valen COLUMNAS x FILAS, que es el tamaño de los mapas
+    generados proceduralmente, pero los mapas de Tiled son más anchos que
+    la pantalla y hay que pasarles su tamaño real — si no, el BFS se
+    detiene en la columna 13 y da por inalcanzable todo lo que esté más
+    a la derecha."""
     visitados = {inicio}
     cola = [inicio]
     while cola:
@@ -202,16 +209,20 @@ def _hay_camino(inicio, destino, paredes):
         for dc, df in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
             vecino = (col + dc, fila + df)
             nc, nf = vecino
-            if (0 <= nc < COLUMNAS and 0 <= nf < FILAS
+            if (0 <= nc < ancho and 0 <= nf < alto
                     and vecino not in paredes
                     and vecino not in visitados):
                 visitados.add(vecino)
                 cola.append(vecino)
     return False
 
-def pasos_minimos(inicio, destino, paredes):
-    """BFS: retorna la cantidad mínima de pasos para llegar al destino.
-    Se usa para calcular el puntaje y mostrar el hint de pasos sugeridos."""
+def pasos_minimos(inicio, destino, paredes, ancho=COLUMNAS, alto=FILAS):
+    """BFS: retorna la cantidad mínima de pasos para llegar al destino,
+    o None si no hay camino posible. Se usa para calcular el puntaje y
+    mostrar el hint de pasos sugeridos.
+
+    Igual que _hay_camino, hay que pasarle el tamaño real del mapa cuando
+    no es una grilla procedural de COLUMNAS x FILAS."""
     visitados = {inicio: 0}
     cola = [(inicio, 0)]
     while cola:
@@ -221,7 +232,7 @@ def pasos_minimos(inicio, destino, paredes):
         for dc, df in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
             vecino = (col + dc, fila + df)
             nc, nf = vecino
-            if (0 <= nc < COLUMNAS and 0 <= nf < FILAS
+            if (0 <= nc < ancho and 0 <= nf < alto
                     and vecino not in paredes
                     and vecino not in visitados):
                 visitados[vecino] = pasos + 1
