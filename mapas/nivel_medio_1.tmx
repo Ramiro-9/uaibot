@@ -66,5 +66,11 @@
    </properties>
    <point/>
   </object>
+  <object id="13" name="caja" x="240" y="60">
+   <point/>
+  </object>
+  <object id="14" name="caja" x="360" y="60">
+   <point/>
+  </object>
  </objectgroup>
 </map>
