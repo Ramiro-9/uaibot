@@ -40,7 +40,6 @@ import sprites as spr
 from constantes import *
 
 # ── Configuración del spritesheet de UAIBOT ───────────────────────────────────
-TOTAL_FRAMES = 6      # cantidad de frames en cada spritesheet
 FRAME_WIDTH  = 128    # ancho de cada frame en píxeles
 FRAME_HEIGHT = 128    # alto de cada frame en píxeles
 
@@ -132,7 +131,8 @@ class Juego(arcade.View):
         if hasattr(self, 'musica_player') and self.musica_player:
             arcade.stop_sound(self.musica_player)
             self.musica_player = None
-        self.musica_player = arcade.play_sound(self.musica, volume=0.3, loop=True)
+        self.musica_player = arcade.play_sound(
+            self.musica, volume=guardado.cargar().get("volumen_musica_nivel", 0.3), loop=True)
 
         self.numero_nivel  = numero_nivel
         self.dificultad    = self._dificultad_del_nivel(numero_nivel)
@@ -160,6 +160,10 @@ class Juego(arcade.View):
         # (no de tamaño) cada vez que UAIBOT empuja una — a diferencia de
         # paredes/hielo, que son fijas durante todo el nivel.
         self.cajas          = set(datos.get("cajas", []))
+        # Donaciones del Modo Viaje: lista de dicts {"pos", "tipo", "recogida"}.
+        # Los niveles procedurales no las generan, así que queda vacía salvo
+        # que el mapa de Tiled las declare.
+        self.donaciones     = [dict(d) for d in datos.get("donaciones", [])]
         self.mapa_ancho    = datos["ancho"]
         self.mapa_alto     = datos["alto"]
 
@@ -249,6 +253,20 @@ class Juego(arcade.View):
         alcanzado); Viaje guarda el progreso y desbloquea personajes."""
         guardado.actualizar_highscore_infinito(self.puntaje_total, self.numero_nivel)
 
+    def _sendero_bloquea(self, nc, nf):
+        """Si la celda destino no se puede pisar por estar ya recorrida.
+
+        Es la regla central del juego. Los modos con habilidades la
+        sobrescriben, porque la Rampa de UAIBOTA justamente sirve para
+        cruzar el camino recorrido una vez por nivel (ver habilidades.py)."""
+        return (nc, nf) in self.sendero
+
+    def _puede_empujar_cajas(self):
+        """Si el personaje actual puede empujar cajas. Por defecto sí:
+        en Infinito no hay personajes que elegir. En los modos con
+        habilidades queda reservado a UAIBOT, cuya habilidad es la Carga."""
+        return True
+
     def _guardar_snapshot(self):
         """Se llama justo antes de cada acción que cambia el estado del
         nivel (mover, recoger la llave), para que los modos que tengan
@@ -271,6 +289,19 @@ class Juego(arcade.View):
         }
 
     # ── Construcción de capas estáticas (SpriteList) ──────────────────────────
+    def _crear_sprite_hielo(self, col, fila):
+        """Celda de hielo a tamaño nativo y centrada (ver nota en setup).
+        Si no está el PNG, cae al cuadrado de color de siempre."""
+        tex = spr.cargar(SPRITE_HIELO)
+        if tex:
+            sprite = arcade.Sprite(tex)
+            sprite.width  = tex.width
+            sprite.height = tex.height
+            sprite.center_x, sprite.center_y = self._celda_a_px(col, fila)
+            return sprite
+        return self._crear_sprite_celda(SPRITE_HIELO, col, fila, COLOR_HIELO,
+                                        forzar_color=True)
+
     def _crear_sprite_celda(self, path, col, fila, color_fallback, forzar_color=False):
         """Crea un arcade.Sprite para la celda (col, fila).
         Si existe el archivo de imagen (y no se fuerza el color), usa la
@@ -322,11 +353,13 @@ class Juego(arcade.View):
 
         # Hielo: sí se dibuja también en modo tilemap (igual que en la
         # versión original, que no distinguía por self.tile_map acá).
+        # A diferencia de las demás capas, NO se estira a la celda: es un
+        # parche a tamaño nativo (48px sobre celdas de 60), centrado —
+        # estirado a 60 quedaba como un bloque que llena la celda y se
+        # confundía con el piso pintado.
         self.hielo_sprites = arcade.SpriteList()
         for (col, fila) in self.hielo:
-            self.hielo_sprites.append(
-                self._crear_sprite_celda(SPRITE_HIELO, col, fila, COLOR_HIELO)
-            )
+            self.hielo_sprites.append(self._crear_sprite_hielo(col, fila))
 
         # Sendero: arranca vacío, se completa con _agregar_huella().
         self.sendero_sprites = arcade.SpriteList()
@@ -390,20 +423,13 @@ class Juego(arcade.View):
         """Carga todos los sprites, sonidos y música del juego.
         Solo se ejecuta una vez en __init__ para no bloquear entre niveles."""
 
-        # Spritesheet de UAIBOT: 6 frames de 128x128 en una fila
-        sheet_idle = arcade.load_spritesheet("assets/Idle.png")
-        sheet_walk = arcade.load_spritesheet("assets/Walk.png")
-        self.frames_idle = []
-        self.frames_walk = []
-        for i in range(TOTAL_FRAMES):
-            self.frames_idle.append(
-                sheet_idle.get_texture(arcade.LRBT(
-                    i * FRAME_WIDTH, i * FRAME_WIDTH + FRAME_WIDTH, 0, FRAME_HEIGHT))
-            )
-            self.frames_walk.append(
-                sheet_walk.get_texture(arcade.LRBT(
-                    i * FRAME_WIDTH, i * FRAME_WIDTH + FRAME_WIDTH, 0, FRAME_HEIGHT))
-            )
+        # Animaciones de toda la familia: cada personaje usa su arte propio si
+        # lo tiene, o las hojas de UAIBOT teñidas si todavía no. Juego dibuja
+        # siempre a UAIBOT, pero Viaje y Multijugador heredan de acá y sí
+        # alternan personajes.
+        self.familia = spr.cargar_familia(PERSONAJES_FAMILIA, FRAME_WIDTH, FRAME_HEIGHT)
+        self.frames_idle = self.familia["uaibot"]["idle"]
+        self.frames_walk = self.familia["uaibot"]["walk"]
 
         self.frame_actual    = 0
         self.timer_frame     = 0
@@ -414,6 +440,16 @@ class Juego(arcade.View):
         self.snd_no_mover = arcade.load_sound("assets/NoMoverse.wav")
         self.snd_victoria = arcade.load_sound("assets/CompletedLevel.wav")
         self.musica       = arcade.load_sound("assets/GameLevelMusic.wav")
+
+        # Ítems de donación (Modo Viaje) y objetos coleccionables
+        # (Multijugador): estáticos, un PNG por tipo/id. Van en el mismo
+        # diccionario porque comparten el mismo dibujado — la "donación" de
+        # un mapa medio y el "objeto" de un mapa difícil solo se distinguen
+        # por el sprite que les toca.
+        self.img_donaciones = {
+            **{tipo: arcade.load_texture(ruta) for tipo, ruta in DONACIONES_SPRITES.items()},
+            **{o["id"]: arcade.load_texture(o["archivo"]) for o in OBJETOS_MULTIJUGADOR},
+        }
 
         # Spritesheets de elementos animados en loop
         sheet_llave     = arcade.load_spritesheet("assets/llave_anim.png")
@@ -633,7 +669,7 @@ class Juego(arcade.View):
         # Va ANTES de empujar la caja a propósito: si no, al empujar una
         # caja hacia una celda ya recorrida la caja se movía igual y
         # UAIBOT no, dejando el empujón hecho a medias.
-        if (nc, nf) in self.sendero:
+        if self._sendero_bloquea(nc, nf):
             arcade.play_sound(self.snd_no_mover)
             return
 
@@ -641,6 +677,9 @@ class Juego(arcade.View):
         # destino tiene una caja, hay que intentar empujarla UNA celda
         # más allá en la misma dirección antes de poder ocupar su lugar.
         if (nc, nf) in self.cajas:
+            if not self._puede_empujar_cajas():
+                arcade.play_sound(self.snd_no_mover)
+                return
             nc_caja = nc + dc
             nf_caja = nf + df
             fuera_de_mapa   = not (0 <= nc_caja < self.mapa_ancho and 0 <= nf_caja < self.mapa_alto)
@@ -766,7 +805,7 @@ class Juego(arcade.View):
         self.timer_frame += 1
         if self.timer_frame >= self.velocidad_frame:
             self.timer_frame  = 0
-            self.frame_actual = (self.frame_actual + 1) % TOTAL_FRAMES
+            self.frame_actual = (self.frame_actual + 1) % len(self._frames_activos())
 
         # Movimiento suave: interpolar posición en píxeles hacia la celda destino
         dest_x, dest_y = self._celda_a_px(self.col, self.fila)
@@ -860,6 +899,7 @@ class Juego(arcade.View):
                 self._dibujar_puertas_placa()
                 self._dibujar_portal()
                 self._dibujar_llave()
+                self._dibujar_donaciones()
                 self._dibujar_uaibot()
         else:
             # Modo sin cámara (generación automática, modo fácil).
@@ -876,6 +916,7 @@ class Juego(arcade.View):
             self._dibujar_puertas_placa()
             self._dibujar_portal()
             self._dibujar_llave()
+            self._dibujar_donaciones()
             self._dibujar_uaibot()
 
         self._dibujar_panel()
@@ -947,18 +988,44 @@ class Juego(arcade.View):
         arcade.draw_texture_rect(frame, arcade.XYWH(x, y, TAM_CELDA, TAM_CELDA))
 
     def _dibujar_llave(self):
-        """Dibuja la llave animada si UAIBOT todavía no la recogió."""
+        """Dibuja la llave animada si UAIBOT todavía no la recogió.
+        A tamaño NATIVO del frame (20x20): antes se forzaba a la celda
+        completa (60x60) y el estirado 3x la dejaba difusa."""
         if self.pos_llave and not self.tiene_llave:
             col, fila = self.pos_llave
             x, y  = self._celda_a_px(col, fila)
             frame = self.frames_llave[self.frame_elementos % len(self.frames_llave)]
-            arcade.draw_texture_rect(frame, arcade.XYWH(x, y, TAM_CELDA, TAM_CELDA))
+            arcade.draw_texture_rect(frame,
+                                     arcade.XYWH(x, y, frame.width, frame.height))
+
+    def _dibujar_donaciones(self):
+        """Dibuja las donaciones/objetos no recolectados. Son estáticos —no
+        tienen animación a propósito— y cada tipo usa su propio PNG (los
+        tipos de Viaje y los ids de objeto del Multijugador comparten este
+        mismo dibujado). Un tipo desconocido en el .tmx cae al sprite de
+        comida en vez de romper."""
+        for d in self.donaciones:
+            if d["recogida"]:
+                continue
+            x, y = self._celda_a_px(*d["pos"])
+            textura = self.img_donaciones.get(d["tipo"], self.img_donaciones["comida"])
+            arcade.draw_texture_rect(textura, arcade.XYWH(x, y, TAM_CELDA, TAM_CELDA))
+
+    def _frames_activos(self):
+        """Frames de la animación que corresponde en este instante.
+
+        Es el punto de extensión para los modos con varios personajes: Viaje y
+        Multijugador lo redefinen para devolver los del personaje activo, que
+        puede traer distinta cantidad de frames que UAIBOT."""
+        return self.frames_walk if self.moviendose else self.frames_idle
 
     def _dibujar_uaibot(self):
         """Dibuja a UAIBOT en su posición interpolada con la animación correcta."""
-        frames = self.frames_walk if self.moviendose else self.frames_idle
+        frames = self._frames_activos()
+        # el módulo protege el caso de que idle y walk traigan distinta
+        # cantidad de frames y se cambie de animación a mitad del ciclo
         arcade.draw_texture_rect(
-            frames[self.frame_actual],
+            frames[self.frame_actual % len(frames)],
             arcade.XYWH(self.px_x, self.px_y, TAM_CELDA, TAM_CELDA)
         )
 
@@ -996,8 +1063,19 @@ class Juego(arcade.View):
         self.txt_controles_titulo.draw()
         self.txt_controles.draw()
         self.txt_reiniciar.draw()
+        self._dibujar_iconos_panel()
         if self.dificultad == "dificil" and self.pos_llave:
             self.txt_llave.draw()
+            spr.dibujar_icono(ICONO_LLAVE, self.x_iconos, self.txt_llave.y + 5)
+
+    # Los íconos van pegados al borde derecho del panel, alineados con el texto
+    # que acompañan. Así no hay que recolocar ni un solo texto: si el arte no
+    # está, el panel queda exactamente como estaba.
+    x_iconos = ANCHO_JUEGO + PANEL_ANCHO - 26
+
+    def _dibujar_iconos_panel(self):
+        """Íconos del panel base. Las subclases suman los suyos."""
+        spr.dibujar_icono(ICONO_PASOS, self.x_iconos, self.txt_pasos_titulo.y + 5)
 
     def _dibujar_overlay_victoria(self):
         """Overlay de victoria con confeti, puntaje obtenido y mensaje de continuación."""

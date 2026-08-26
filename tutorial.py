@@ -42,7 +42,6 @@ SILLAS_FIJAS = {
     (9, 2): 1,
 }
 
-TOTAL_FRAMES = 6
 FRAME_WIDTH  = 128
 FRAME_HEIGHT = 128
 
@@ -52,7 +51,9 @@ COLOR_FONDO_CLARO     = (44, 62, 80)
 COLOR_FONDO_OSCURO    = (39, 55, 70)
 COLOR_COMIDA          = (241, 196, 15)
 COLOR_SILLA           = (52, 152, 219)
-COLOR_SILLA_EXCEDIDA  = (192, 57, 43)
+COLOR_SILLA_COMPLETA  = (46, 204, 113)   # ya tiene las pasadas justas
+COLOR_SILLA_EXCEDIDA  = (192, 57, 43)    # se paso de más: nivel perdido
+COLOR_LADO_SILLA      = (52, 152, 219, 170)   # marca de "pasá por acá"
 
 
 class Tutorial(arcade.View):
@@ -72,7 +73,8 @@ class Tutorial(arcade.View):
         if hasattr(self, "musica_player") and self.musica_player:
             arcade.stop_sound(self.musica_player)
             self.musica_player = None
-        self.musica_player = arcade.play_sound(self.musica, volume=0.3, loop=True)
+        self.musica_player = arcade.play_sound(
+            self.musica, volume=guardado.cargar().get("volumen_musica_nivel", 0.3), loop=True)
 
         self.paredes         = set(PAREDES_FIJAS)
         self.comida_pendiente = set(COMIDA_FIJA)
@@ -179,16 +181,11 @@ class Tutorial(arcade.View):
 
     # ── Carga de assets ──────────────────────────────────────────────────────
     def _cargar_assets(self):
-        sheet_idle = arcade.load_spritesheet("assets/Idle.png")
-        sheet_walk = arcade.load_spritesheet("assets/Walk.png")
-        self.frames_idle = [
-            sheet_idle.get_texture(arcade.LRBT(i * FRAME_WIDTH, i * FRAME_WIDTH + FRAME_WIDTH, 0, FRAME_HEIGHT))
-            for i in range(TOTAL_FRAMES)
-        ]
-        self.frames_walk = [
-            sheet_walk.get_texture(arcade.LRBT(i * FRAME_WIDTH, i * FRAME_WIDTH + FRAME_WIDTH, 0, FRAME_HEIGHT))
-            for i in range(TOTAL_FRAMES)
-        ]
+        # Animaciones de los cuatro personajes: cada uno con su arte propio si
+        # lo tiene, o las hojas de UAIBOT teñidas si todavía no. La cantidad de
+        # frames sale del ancho de cada hoja, así conviven hojas de distinto
+        # largo sin tocar nada acá.
+        self.familia = spr.cargar_familia(PERSONAJES_FAMILIA, FRAME_WIDTH, FRAME_HEIGHT)
 
         # Sprite persistente del personaje activo: se reusa entre frames
         # (textura/tinte/posición se actualizan en _dibujar_personaje) en
@@ -196,7 +193,8 @@ class Tutorial(arcade.View):
         # un Sprite suelto no tiene .draw() -hay que dibujarlo dentro de una
         # SpriteList, aunque sea de un solo elemento- así que se envuelve en
         # self.sprites_personaje.
-        self.sprite_personaje = arcade.Sprite(self.frames_idle[0])
+        self.sprite_personaje = arcade.Sprite(
+            self.familia[PERSONAJES_FAMILIA[0]["id"]]["idle"][0])
         self.sprite_personaje.width  = TAM_CELDA
         self.sprite_personaje.height = TAM_CELDA
         self.sprites_personaje = arcade.SpriteList()
@@ -224,19 +222,23 @@ class Tutorial(arcade.View):
 
         self.txt_mision_titulo = arcade.Text("MISION", px + 16, ALTO_VENTANA - 115,
                                               arcade.color.GOLD, 11, bold=True)
+        # El texto es explícito con las sillas a propósito: "pasa por las
+        # sillas" se entendía como "pisalas", que es justo lo que NO hay
+        # que hacer.
         self.txt_mision = arcade.Text(
-            "Recolecta toda la comida\ny pasa por las sillas de\n"
-            "ruedas antes de llegar\nal merendero.",
-            px + 16, ALTO_VENTANA - 135, (200, 200, 200), 10, multiline=True, width=pw - 32)
+            "Junta la comida (hexagonos)\npisandola.\n"
+            "Las sillas (triangulos) no\nse pisan: pasa por su lado\n"
+            "las veces justas.",
+            px + 16, ALTO_VENTANA - 133, (200, 200, 200), 9, multiline=True, width=pw - 32)
 
-        self.txt_pasos_titulo = arcade.Text("PASOS TOTALES", px + 16, ALTO_VENTANA - 220,
+        self.txt_pasos_titulo = arcade.Text("PASOS TOTALES", px + 16, ALTO_VENTANA - 228,
                                              arcade.color.GOLD, 11, bold=True)
-        self.txt_pasos        = arcade.Text("0", px + 16, ALTO_VENTANA - 244,
+        self.txt_pasos        = arcade.Text("0", px + 16, ALTO_VENTANA - 252,
                                              (200, 200, 200), 22, bold=True)
 
-        self.txt_cronometro_titulo = arcade.Text("TIEMPO", px + 16, ALTO_VENTANA - 278,
+        self.txt_cronometro_titulo = arcade.Text("TIEMPO", px + 16, ALTO_VENTANA - 284,
                                                    arcade.color.GOLD, 11, bold=True)
-        self.txt_cronometro        = arcade.Text("0.0s", px + 16, ALTO_VENTANA - 302,
+        self.txt_cronometro        = arcade.Text("0.0s", px + 16, ALTO_VENTANA - 308,
                                                    (200, 200, 200), 18, bold=True)
 
         self.txt_personajes_titulo = arcade.Text("PERSONAJES (C)", px + 16, ALTO_VENTANA - 336,
@@ -536,7 +538,7 @@ class Tutorial(arcade.View):
         self.timer_frame += 1
         if self.timer_frame >= self.velocidad_frame:
             self.timer_frame  = 0
-            self.frame_actual = (self.frame_actual + 1) % TOTAL_FRAMES
+            self.frame_actual = (self.frame_actual + 1) % len(self._frames_activos())
 
         dest_x, dest_y = self._celda_a_px(self.col, self.fila)
         dx = dest_x - self.px_x
@@ -611,17 +613,61 @@ class Tutorial(arcade.View):
             self._dibujar_hexagono(x, y, radio, COLOR_COMIDA)
 
     def _dibujar_sillas(self):
-        """Ídem para sillas de ruedas, pero como triángulo, con el
-        contador de pasadas recolectadas/requeridas sobre la celda."""
+        """Ídem para sillas de ruedas, pero como triángulo, con el contador
+        de pasadas encima.
+
+        Las sillas NO se recogen pisándolas sino pasando por sus lados, que
+        es lo que menos se entiende de todo el nivel. Para enseñarlo sin
+        tener que explicarlo con texto, se marcan en el piso las celdas
+        vecinas por las que todavía conviene pasar: el jugador ve dónde
+        tiene que caminar y deduce la regla solo.
+
+        El color del triángulo dice en qué estado está: azul si falta,
+        verde si ya tiene las pasadas justas, y rojo si se pasó de más (en
+        ese caso el nivel ya no se puede completar)."""
         radio = TAM_CELDA * 0.32
         for (col, fila), info in self.sillas.items():
-            x, y  = self._celda_a_px(col, fila)
-            color = COLOR_SILLA_EXCEDIDA if info["excedido"] else COLOR_SILLA
+            faltan = info["requeridas"] - info["recolectadas"]
+
+            # Marcas en los lados que todavía suman una pasada.
+            if faltan > 0 and not info["excedido"]:
+                self._marcar_lados_de_silla(col, fila)
+
+            x, y = self._celda_a_px(col, fila)
+            if info["excedido"]:
+                color = COLOR_SILLA_EXCEDIDA
+            elif faltan == 0:
+                color = COLOR_SILLA_COMPLETA
+            else:
+                color = COLOR_SILLA
+
             puntos = [(x, y + radio), (x - radio, y - radio), (x + radio, y - radio)]
             arcade.draw_polygon_filled(puntos, color)
             arcade.draw_polygon_outline(puntos, (0, 0, 0), 2)
-            arcade.Text(f"{info['recolectadas']}/{info['requeridas']}", x, y - radio - 12,
-                        arcade.color.WHITE, 9, anchor_x="center", bold=True).draw()
+
+            if info["excedido"]:
+                etiqueta = "de mas!"
+            else:
+                etiqueta = f"{info['recolectadas']}/{info['requeridas']}"
+            arcade.Text(etiqueta, x, y - radio - 12, arcade.color.WHITE, 9,
+                        anchor_x="center", bold=True).draw()
+
+    def _marcar_lados_de_silla(self, col, fila):
+        """Dibuja un recuadro punteado en cada celda vecina por la que aún
+        se puede pasar para tomar una silla. Se saltean las paredes y las
+        celdas ya recorridas, porque por ahí ya no se puede volver a
+        pasar: así la marca siempre señala opciones reales."""
+        for dc, df in ((0, 1), (0, -1), (1, 0), (-1, 0)):
+            vecina = (col + dc, fila + df)
+            if not (0 <= vecina[0] < COLUMNAS and 0 <= vecina[1] < FILAS):
+                continue
+            if vecina in self.paredes or vecina in self.sendero:
+                continue
+            izq = vecina[0] * TAM_CELDA + 6
+            der = izq + TAM_CELDA - 12
+            aba = vecina[1] * TAM_CELDA + 6
+            arr = aba + TAM_CELDA - 12
+            arcade.draw_lrbt_rectangle_outline(izq, der, aba, arr, COLOR_LADO_SILLA, 2)
 
     def _dibujar_portal(self):
         """La consigna obligatoria de Ronda 1 pide una imagen fija en la
@@ -636,11 +682,20 @@ class Tutorial(arcade.View):
         )
         arcade.draw_texture_rect(self.img_merendero, arcade.XYWH(x, y, TAM_CELDA, TAM_CELDA))
 
+    def _animacion_activa(self):
+        """Frames y color del personaje activo. El color sale de la familia y
+        no de constantes.py: quien tiene arte propio viene con tinte neutro,
+        y quien todavía reusa el spritesheet de UAIBOT viene con su color."""
+        return self.familia[PERSONAJES_FAMILIA[self.personaje_activo]["id"]]
+
+    def _frames_activos(self):
+        datos = self._animacion_activa()
+        return datos["walk"] if self.moviendose else datos["idle"]
+
     def _dibujar_personaje(self):
-        frames    = self.frames_walk if self.moviendose else self.frames_idle
-        personaje = PERSONAJES_FAMILIA[self.personaje_activo]
-        self.sprite_personaje.texture  = frames[self.frame_actual]
-        self.sprite_personaje.color    = personaje["color"]
+        frames = self._frames_activos()
+        self.sprite_personaje.texture  = frames[self.frame_actual % len(frames)]
+        self.sprite_personaje.color    = self._animacion_activa()["color"]
         self.sprite_personaje.center_x = self.px_x
         self.sprite_personaje.center_y = self.px_y
         self.sprites_personaje.draw()

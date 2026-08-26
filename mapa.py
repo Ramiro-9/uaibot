@@ -34,6 +34,7 @@ def cargar_mapa(ruta_tmx):
             "controles_cinta": [],
             "bloques_cinta":  [],
             "interruptores":  [],
+            "donaciones":     [],
         }
 
         # Leer la capa de obstáculos y clasificar cada tile según su propiedad "tipo"
@@ -104,6 +105,21 @@ def cargar_mapa(ruta_tmx):
                     # dos al mismo tiempo" es lógica de juego.py / Fase 4.
                     id_puerta = props.get("id_puerta", None)
                     objetos["interruptores"].append({"pos": (col, fila), "id": id_puerta})
+                elif nombre == "donacion":
+                    # Ítem coleccionable del Modo Viaje: uno de los tres tipos
+                    # (comida / libros / juguetes) según la propiedad "tipo".
+                    # La recolección —pisar la celda lo suma al contador— es
+                    # lógica de viaje.py, no de este parser.
+                    tipo = props.get("tipo", "comida")
+                    objetos["donaciones"].append({"pos": (col, fila), "tipo": tipo})
+                elif nombre == "objeto":
+                    # Objeto coleccionable cooperativo del Multijugador: uno
+                    # de los 10 de OBJETOS_MULTIJUGADOR (constantes.py),
+                    # identificado por la propiedad "objeto". La recolección
+                    # —cualquiera de los dos jugadores pisando la celda— es
+                    # lógica de multijugador.py.
+                    id_objeto = props.get("objeto", "foto")
+                    objetos["donaciones"].append({"pos": (col, fila), "tipo": id_objeto})
                 elif nombre == "teleporte":
                     id_tel = props.get("id_teleporte", 1)
                     teleportes.setdefault(id_tel, []).append((col, fila))

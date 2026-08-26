@@ -29,11 +29,14 @@ ARCHIVO = "guardado.json"
 DATOS_DEFAULT = {
     "highscore": 0,
     "controles": "flechas",
+    "volumen_musica_menu": 0.3,
+    "volumen_musica_nivel": 0.3,
     "infinito": {
         "puntaje_total": 0,
         "nivel_maximo": 0,
     },
     "personajes_desbloqueados": ["uaibot"],
+    "objetos_multijugador": [],
     "progreso_viaje": {
         "nivel_actual": 1,
         "completado": False,
@@ -96,6 +99,17 @@ def actualizar_controles(modo):
     guardar(datos)
 
 
+def actualizar_volumenes(menu=None, nivel=None):
+    """Guarda los volúmenes de música por separado (menú y niveles).
+    Solo actualiza el que reciba; el otro queda como estaba."""
+    datos = cargar()
+    if menu is not None:
+        datos["volumen_musica_menu"]  = menu
+    if nivel is not None:
+        datos["volumen_musica_nivel"] = nivel
+    guardar(datos)
+
+
 def actualizar_highscore_infinito(puntaje_total, nivel_alcanzado):
     """Actualiza las dos métricas del Modo Infinito de forma independiente:
     el puntaje total solo sube si es mayor al guardado, y lo mismo para
@@ -115,6 +129,15 @@ def desbloquear_personaje(nombre):
     datos = cargar()
     if nombre not in datos["personajes_desbloqueados"]:
         datos["personajes_desbloqueados"].append(nombre)
+        guardar(datos)
+
+
+def desbloquear_objeto(id_objeto):
+    """Agrega un objeto coleccionable a la lista de conseguidos (Modo
+    Multijugador). No hace nada si ya estaba. Lo lee el Inventario."""
+    datos = cargar()
+    if id_objeto not in datos["objetos_multijugador"]:
+        datos["objetos_multijugador"].append(id_objeto)
         guardar(datos)
 
 
