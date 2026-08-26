@@ -28,7 +28,7 @@ Registro de versiones del proyecto.
   que en 1.3 se conecta a lógica de juego real).
 - Incluye subversiones de parches sobre esta base.
 
-## [1.3] — Versión entregada
+## [1.3] — Versión entregada en la 1ra ronda
 
 - Incorporación definitiva de las mecánicas jugables (más allá de lo
   visual): hielo, teletransporte vinculado, llave + puertas con llave,
