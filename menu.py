@@ -54,11 +54,13 @@ MODOS_PENDIENTES: set = set()
 CAMINATA_Y          = 210   # altura de la banda del sendero, en plano medio
 CAMINATA_TAM        = 115   # lado del frame al dibujarlo
 CAMINATA_SEPARACION = 105   # distancia entre uno y otro: caminan en grupo
-# Los sprites del juego son claros y fríos; la ilustración es cálida y está en
-# penumbra de atardecer. Dibujados tal cual quedan flotando, como calcomanías
-# sobre el fondo. Estas dos cosas los meten en la escena: la luz los tiñe con
-# el color de la hora, y la sombra los apoya en el piso.
-CAMINATA_LUZ        = (188, 158, 122)   # luz cálida de atardecer
+# Los sprites son claros y fríos; la ilustración es cálida y está en penumbra
+# de atardecer. Dibujados tal cual quedan flotando, como calcomanías sobre el
+# fondo. LUZ_ESCENA los tiñe con el color de la hora y la sombra los apoya en
+# el piso. La luz la reciben TODAS las capas que están dentro de la escena
+# -nubes, pájaros y la familia-, no solo una: que una sola estuviera integrada
+# y el resto no era justamente lo que se veía inconsistente.
+LUZ_ESCENA          = (188, 158, 122)   # luz cálida de atardecer
 # La sombra va en NEGRO con alpha, no en un gris oscuro: la escena tiene
 # zonas de valor 4-7, más oscuras que cualquier gris, y mezclar hacia un
 # color más claro que el fondo ACLARA en vez de oscurecer. Mezclar hacia
@@ -95,6 +97,9 @@ PAJAROS = [
     (ALTO_VENTANA - 330, 52, 0.55),
 ]
 LUCIERNAGA_TAM   = 44   # chiquitas: son puntos de luz, no protagonistas
+# No reciben LUZ_ESCENA como las demás capas: emiten en vez de recibir, así
+# que van con su propio verde cálido, apenas por encima del blanco.
+BRILLO_LUCIERNAGA = (255, 245, 190)
 LUCIERNAGAS_FPS  = 4
 # (centro x, centro y, amplitud x, amplitud y, velocidad de vaivén, fase)
 LUCIERNAGAS = [
@@ -305,7 +310,7 @@ class Menu(arcade.View):
                              + self.tiempo_nubes * velocidad) % recorrido
             arcade.draw_texture_rect(
                 frame, arcade.XYWH(x, y, NUBE_TAM, NUBE_TAM),
-                color=arcade.types.Color(255, 255, 255, alpha)
+                color=arcade.types.Color(*self._tinte_escena((255, 255, 255)), alpha)
             )
 
     def _dibujar_pajaros(self):
@@ -319,7 +324,7 @@ class Menu(arcade.View):
                                + self.tiempo_nubes * velocidad) % recorrido
             arcade.draw_texture_rect(
                 frame, arcade.XYWH(x, y, PAJARO_TAM, PAJARO_TAM),
-                color=arcade.types.Color(255, 255, 255, 220)
+                color=arcade.types.Color(*self._tinte_escena((255, 255, 255)), 220)
             )
 
     def _dibujar_luciernagas(self):
@@ -335,7 +340,7 @@ class Menu(arcade.View):
             y = cy + math.sin(vel * t * 1.7 + fase * 2.0) * ampy
             arcade.draw_texture_rect(
                 frame, arcade.XYWH(x, y, LUCIERNAGA_TAM, LUCIERNAGA_TAM),
-                color=arcade.types.Color(255, 255, 255, 230)
+                color=arcade.types.Color(*BRILLO_LUCIERNAGA, 230)
             )
 
     def _dibujar_caminata(self):
@@ -366,7 +371,7 @@ class Menu(arcade.View):
         """Multiplica el color del personaje por la luz de la escena. Se
         multiplica en vez de reemplazar para no perder el tinte de los
         personajes que todavía no tienen arte propio."""
-        return tuple(c * luz // 255 for c, luz in zip(color, CAMINATA_LUZ))
+        return tuple(c * luz // 255 for c, luz in zip(color, LUZ_ESCENA))
 
     # ── Eventos de teclado ────────────────────────────────────────────────────
     def on_key_press(self, symbol, modifiers):
@@ -524,8 +529,12 @@ class Menu(arcade.View):
         self._dibujar_nubes()
         self._dibujar_pajaros()
         self._dibujar_caminata()
-        self._dibujar_luciernagas()
         arcade.draw_lrbt_rectangle_filled(0, ANCHO_VENTANA, 0, ALTO_VENTANA, (0, 0, 0, 100))
+        # Las luciérnagas van DESPUÉS del oscurecido: son fuentes de luz, no
+        # objetos iluminados. Dibujadas antes, el overlay las apagaba junto
+        # con el resto de la escena, que es exactamente lo contrario de lo
+        # que hace una luciérnaga.
+        self._dibujar_luciernagas()
 
         self.txt_titulo.draw()
         self.txt_subtitulo.draw()
