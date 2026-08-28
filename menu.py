@@ -19,10 +19,14 @@
 #     personajes de la familia de UAIBOT.
 #   - Multijugador (multijugador.py) es el cooperativo para dos jugadores
 #     en red local, sobre los 10 mapas de dificultad difícil.
-# Solo Inventario/Bestiario sigue mostrando la pantalla "Próximamente"
-# (clase Placeholder, al final del archivo).
-
-import math
+#   - Inventario/Bestiario (clase Inventario, en este archivo) muestra la
+#     familia y los objetos coleccionables del Multijugador.
+#
+# El fondo es una ilustración fija: la familia y el merendero ya están
+# pintados dentro de ella. Hubo una versión con capas animadas encima
+# -nubes, pájaros, luciérnagas y la familia caminando- que se quitó porque
+# los sprites de juego sobre una ilustración pintada nunca terminaron de
+# integrarse, por más luz y sombra que se les aplicara.
 
 import arcade
 
@@ -43,74 +47,6 @@ PASO_VOLUMEN  = 0.1
 # lista a medida que cada modo se implementa en las fases siguientes.
 MODOS_PENDIENTES: set = set()
 
-# ── Fondo animado: la familia caminando ───────────────────────────────────────
-# Los cuatro personajes cruzan el sendero de la ilustración en loop. Se dibujan
-# ENTRE el fondo y el overlay oscuro, así reciben el mismo oscurecido que la
-# escena -quedan integrados en vez de pegados encima- y los botones se leen
-# por arriba sin competir con ellos.
-# La altura importa: puestos al nivel de los pies del UAIBOT ilustrado, sus
-# 72px contra los 250px de él se leen como un error de escala. Subidos al
-# plano medio del sendero, el mismo tamaño se lee como distancia y funciona.
-CAMINATA_Y          = 210   # altura de la banda del sendero, en plano medio
-CAMINATA_TAM        = 115   # lado del frame al dibujarlo
-CAMINATA_SEPARACION = 105   # distancia entre uno y otro: caminan en grupo
-# Los sprites son claros y fríos; la ilustración es cálida y está en penumbra
-# de atardecer. Dibujados tal cual quedan flotando, como calcomanías sobre el
-# fondo. LUZ_ESCENA los tiñe con el color de la hora y la sombra los apoya en
-# el piso. La luz la reciben TODAS las capas que están dentro de la escena
-# -nubes, pájaros y la familia-, no solo una: que una sola estuviera integrada
-# y el resto no era justamente lo que se veía inconsistente.
-LUZ_ESCENA          = (188, 158, 122)   # luz cálida de atardecer
-# La sombra va en NEGRO con alpha, no en un gris oscuro: la escena tiene
-# zonas de valor 4-7, más oscuras que cualquier gris, y mezclar hacia un
-# color más claro que el fondo ACLARA en vez de oscurecer. Mezclar hacia
-# negro oscurece siempre, sea cual sea el piso, y deja pasar su textura.
-CAMINATA_SOMBRA     = (0, 0, 0, 70)     # sombra elíptica a los pies
-CAMINATA_VELOCIDAD  = 26    # px por segundo
-CAMINATA_FPS        = 6     # poses por segundo
-
-# ── Nubes animadas del fondo ──────────────────────────────────────────────────
-# Spritesheet de 4 frames (assets/nubes_anim.png) generado con PixelLab y
-# puesto en tira horizontal con el mismo criterio que llave_anim.png. Las
-# nubes derivan por el cielo del fondo ilustrado a distintas velocidades:
-# eso, más el morphing del spritesheet, es lo que le da vida al menú sin
-# tocar la ilustración original.
-NUBE_TAM  = 192   # lado del frame al dibujarlo (64px nativos, x3)
-NUBES_FPS = 3     # cuadros por segundo del morphing: sutil, no frenético
-NUBES = [
-    # (altura y, velocidad px/s, fase inicial 0-1, transparencia 0-255)
-    (ALTO_VENTANA - 110, 14, 0.00, 190),   # baja y cercana, la más rápida
-    (ALTO_VENTANA - 170,  9, 0.45, 170),
-    (ALTO_VENTANA - 235,  5, 0.75, 150),   # alta y lejana, casi quieta
-]
-
-# ── Pájaros y luciérnagas del fondo ───────────────────────────────────────────
-# Mismo mecanismo que las nubes (tira de 4 frames), pero cruzando y
-# deambulando: los pájaros van altos y rápido, las luciérnagas titilan
-# cerca del pasto. La idea es que el fondo tenga tres capas de vida a
-# distintas alturas y velocidades.
-PAJARO_TAM   = 96    # los pájaros se dibujan a la mitad que las nubes
-PAJAROS_FPS  = 6     # aleteo más rápido que el morphing de las nubes
-PAJAROS = [
-    # (altura y, velocidad px/s, fase inicial 0-1)
-    (ALTO_VENTANA - 290, 60, 0.10),
-    (ALTO_VENTANA - 330, 52, 0.55),
-]
-LUCIERNAGA_TAM   = 44   # chiquitas: son puntos de luz, no protagonistas
-# No reciben LUZ_ESCENA como las demás capas: emiten en vez de recibir, así
-# que van con su propio verde cálido, apenas por encima del blanco.
-BRILLO_LUCIERNAGA = (255, 245, 190)
-LUCIERNAGAS_FPS  = 4
-# (centro x, centro y, amplitud x, amplitud y, velocidad de vaivén, fase)
-LUCIERNAGAS = [
-    (ANCHO_VENTANA * 0.18, 120, 55, 30, 0.45, 0.0),
-    (ANCHO_VENTANA * 0.42,  95, 70, 38, 0.33, 1.3),
-    (ANCHO_VENTANA * 0.60, 150, 45, 26, 0.52, 2.4),
-    (ANCHO_VENTANA * 0.80,  80, 60, 32, 0.38, 4.0),
-    (ANCHO_VENTANA * 0.32, 185, 38, 22, 0.60, 5.1),
-]
-
-
 class Menu(arcade.View):
     # Player de música a nivel de clase: el menú se reconstruye cada vez que
     # se vuelve de un modo (show_view(Menu())), y así el nuevo Menú puede
@@ -128,8 +64,7 @@ class Menu(arcade.View):
 
     # ── Assets ────────────────────────────────────────────────────────────────
     def _cargar_assets(self):
-        """Carga el fondo del menú, los ribbons de botones y la familia que
-        camina por el fondo animado."""
+        """Carga el fondo ilustrado del menú y los ribbons de botones."""
         self.img_fondo = arcade.load_texture("assets/fondo_menu.png")
 
         # Los ribbons vienen apilados verticalmente, uno por opción del menú.
@@ -150,67 +85,7 @@ class Menu(arcade.View):
             for i in range(cantidad)
         ]
 
-        # Familia para el fondo animado. Reusa exactamente las mismas hojas
-        # que el juego, con la misma regla de tinte: quien tiene arte propio
-        # va sin teñir, quien no, teñido con su color.
-        self.familia         = spr.cargar_familia(PERSONAJES_FAMILIA, 128, 128)
-        self.orden_desfile   = [p["id"] for p in PERSONAJES_FAMILIA]
-        self.desplazamiento  = 0.0
-        self.frame_caminata  = 0
-        self.timer_caminata  = 0.0
-
-        # Nubes, pájaros y luciérnagas: tiras horizontales de 4 frames. El
-        # corte por geometría real de la imagen (y no un número mágico) va
-        # en un helper porque las tres comparten el mismo formato.
-        def cortar_tira(ruta, ida_y_vuelta=False):
-            """Corta una tira horizontal de 4 frames para el fondo animado.
-
-            Descarta los frames completamente transparentes: nubes_anim.png
-            trae el primero vacío, y dejarlo hacía que las nubes se borraran
-            un tercio de segundo en cada vuelta del ciclo.
-
-            Con ida_y_vuelta el ciclo va y vuelve en vez de reiniciar de
-            golpe. Las nubes lo necesitan porque su tira no es un loop sino
-            una animación de crecimiento -chica, mediana, grande-, y saltar
-            de la grande a la chica se ve como un tirón; yendo y volviendo
-            la nube se hincha y se deshincha, que es lo que hace una nube."""
-            sheet   = arcade.load_spritesheet(ruta)
-            ancho_f = sheet.image.width // 4
-            frames  = []
-            for i in range(4):
-                recorte = sheet.image.crop((i * ancho_f, 0, (i + 1) * ancho_f,
-                                            sheet.image.height))
-                if recorte.getbbox() is None:
-                    continue          # frame vacío: solo haría parpadear
-                frames.append(sheet.get_texture(
-                    arcade.LRBT(i * ancho_f, (i + 1) * ancho_f,
-                                0, sheet.image.height)))
-            if ida_y_vuelta and len(frames) > 2:
-                frames += frames[-2:0:-1]
-            return frames
-
-        self.frames_nubes       = cortar_tira("assets/nubes_anim.png",
-                                              ida_y_vuelta=True)
-        self.frames_pajaros     = cortar_tira("assets/pajaros_anim.png")
-        self.frames_luciernagas = cortar_tira("assets/luciernagas_anim.png")
-        # Las tres capas animadas del fondo siguen el mismo patrón: un
-        # acumulador de tiempo continuo -compartido, del que salen todas las
-        # derivas- y, por capa, un timer propio más un contador de frames para
-        # el morphing de su tira. Se inicializan las tres juntas a propósito:
-        # faltaban las de pájaros y luciérnagas, y el menú crasheaba con
-        # AttributeError en el primer on_update.
-        self.tiempo_nubes = 0.0   # acumulador común de las derivas
-        self.frame_nubes,       self.timer_nubes       = 0, 0.0
-        self.frame_pajaros,     self.timer_pajaros     = 0, 0.0
-        self.frame_luciernagas, self.timer_luciernagas = 0, 0.0
-
         self.musica = arcade.load_sound("assets/MenuMusic.wav")
-
-        # De un borde a otro con margen para entrar y salir de cuadro. Van
-        # juntos y no repartidos por toda la pantalla: repartidos, la columna
-        # de botones tapa siempre a dos, y la idea es que se vea la familia
-        # entera. En grupo cruzan los claros de izquierda y derecha completos.
-        self.recorrido = ANCHO_VENTANA + CAMINATA_TAM * 2
 
     # ── Textos ────────────────────────────────────────────────────────────────
     def _crear_textos(self):
@@ -270,110 +145,6 @@ class Menu(arcade.View):
             arcade.stop_sound(cls.musica_player)
             cls.musica_player = None
 
-    def on_update(self, delta_time):
-        """Avanza el desfile de la familia. El menú no tenía on_update: era una
-        pantalla estática, y esta es la única animación que corre acá."""
-        self.desplazamiento = (self.desplazamiento
-                               + CAMINATA_VELOCIDAD * delta_time) % self.recorrido
-        self.timer_caminata += delta_time
-        if self.timer_caminata >= 1 / CAMINATA_FPS:
-            self.timer_caminata -= 1 / CAMINATA_FPS
-            self.frame_caminata += 1
-
-        # Nubes: acumulador continuo para la deriva (velocidades fraccionales)
-        # y timer propio para el morphing del spritesheet.
-        self.tiempo_nubes += delta_time
-        self.timer_nubes  += delta_time
-        if self.timer_nubes >= 1 / NUBES_FPS:
-            self.timer_nubes -= 1 / NUBES_FPS
-            self.frame_nubes += 1
-
-        # Pájaros y luciérnagas: mismo patrón, cada uno a su ritmo.
-        self.timer_pajaros += delta_time
-        if self.timer_pajaros >= 1 / PAJAROS_FPS:
-            self.timer_pajaros -= 1 / PAJAROS_FPS
-            self.frame_pajaros += 1
-
-        self.timer_luciernagas += delta_time
-        if self.timer_luciernagas >= 1 / LUCIERNAGAS_FPS:
-            self.timer_luciernagas -= 1 / LUCIERNAGAS_FPS
-            self.frame_luciernagas += 1
-
-    def _dibujar_nubes(self):
-        """Dibuja las tres nubes del fondo animado: cada una deriva a su
-        velocidad y comparte el frame de morphing. La transparencia crece
-        con la altura para que las lejanas se integren al cielo."""
-        recorrido = ANCHO_VENTANA + NUBE_TAM
-        frame     = self.frames_nubes[self.frame_nubes % len(self.frames_nubes)]
-        for y, velocidad, fase, alpha in NUBES:
-            x = -NUBE_TAM + (fase * recorrido
-                             + self.tiempo_nubes * velocidad) % recorrido
-            arcade.draw_texture_rect(
-                frame, arcade.XYWH(x, y, NUBE_TAM, NUBE_TAM),
-                color=arcade.types.Color(*self._tinte_escena((255, 255, 255)), alpha)
-            )
-
-    def _dibujar_pajaros(self):
-        """Dos pájaros cruzando el cielo aleteando (frames a PAJAROS_FPS).
-        Van más alto y más rápido que las nubes: son la capa media del
-        fondo animado."""
-        recorrido = ANCHO_VENTANA + PAJARO_TAM
-        frame     = self.frames_pajaros[self.frame_pajaros % len(self.frames_pajaros)]
-        for y, velocidad, fase in PAJAROS:
-            x = -PAJARO_TAM + (fase * recorrido
-                               + self.tiempo_nubes * velocidad) % recorrido
-            arcade.draw_texture_rect(
-                frame, arcade.XYWH(x, y, PAJARO_TAM, PAJARO_TAM),
-                color=arcade.types.Color(*self._tinte_escena((255, 255, 255)), 220)
-            )
-
-    def _dibujar_luciernagas(self):
-        """Las luciérnagas deambulan cerca del pasto con un vaivén suave
-        (seno en x e y, desfasado para que no orbiten en círculos) y su
-        brillo pulsa con el sprite. Van al final para que titilen por
-        encima de la familia que camina."""
-        frame = self.frames_luciernagas[self.frame_luciernagas
-                                        % len(self.frames_luciernagas)]
-        t     = self.tiempo_nubes
-        for cx, cy, ampx, ampy, vel, fase in LUCIERNAGAS:
-            x = cx + math.sin(vel * t + fase) * ampx
-            y = cy + math.sin(vel * t * 1.7 + fase * 2.0) * ampy
-            arcade.draw_texture_rect(
-                frame, arcade.XYWH(x, y, LUCIERNAGA_TAM, LUCIERNAGA_TAM),
-                color=arcade.types.Color(*BRILLO_LUCIERNAGA, 230)
-            )
-
-    def _dibujar_caminata(self):
-        """Dibuja a los cuatro cruzando el sendero, repartidos parejo y en loop.
-
-        El módulo sobre len(frames) es necesario porque cada personaje puede
-        traer distinta cantidad de poses (UAIBOT tiene 6, sus hermanos 4)."""
-        # el personaje va apoyado al fondo de su frame, así que los pies caen
-        # en el borde inferior del cuadrado que se dibuja
-        y_pies = CAMINATA_Y - CAMINATA_TAM / 2 + 2
-
-        for i, id_personaje in enumerate(self.orden_desfile):
-            datos  = self.familia[id_personaje]
-            frames = datos["walk"]
-            x = -CAMINATA_TAM + (i * CAMINATA_SEPARACION
-                                 + self.desplazamiento) % self.recorrido
-
-            arcade.draw_ellipse_filled(x, y_pies, CAMINATA_TAM * 0.17,
-                                       CAMINATA_TAM * 0.05, CAMINATA_SOMBRA)
-            arcade.draw_texture_rect(
-                frames[self.frame_caminata % len(frames)],
-                arcade.XYWH(x, CAMINATA_Y, CAMINATA_TAM, CAMINATA_TAM),
-                color=arcade.types.Color(*self._tinte_escena(datos["color"]))
-            )
-
-    @staticmethod
-    def _tinte_escena(color):
-        """Multiplica el color del personaje por la luz de la escena. Se
-        multiplica en vez de reemplazar para no perder el tinte de los
-        personajes que todavía no tienen arte propio."""
-        return tuple(c * luz // 255 for c, luz in zip(color, LUZ_ESCENA))
-
-    # ── Eventos de teclado ────────────────────────────────────────────────────
     def on_key_press(self, symbol, modifiers):
         if self.submenu == "ajustes":
             self._manejar_ajustes(symbol)
@@ -526,15 +297,7 @@ class Menu(arcade.View):
             self.img_fondo,
             arcade.XYWH(ANCHO_VENTANA // 2, ALTO_VENTANA // 2, ANCHO_VENTANA, ALTO_VENTANA)
         )
-        self._dibujar_nubes()
-        self._dibujar_pajaros()
-        self._dibujar_caminata()
         arcade.draw_lrbt_rectangle_filled(0, ANCHO_VENTANA, 0, ALTO_VENTANA, (0, 0, 0, 100))
-        # Las luciérnagas van DESPUÉS del oscurecido: son fuentes de luz, no
-        # objetos iluminados. Dibujadas antes, el overlay las apagaba junto
-        # con el resto de la escena, que es exactamente lo contrario de lo
-        # que hace una luciérnaga.
-        self._dibujar_luciernagas()
 
         self.txt_titulo.draw()
         self.txt_subtitulo.draw()
