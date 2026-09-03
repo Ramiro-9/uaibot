@@ -266,291 +266,94 @@ una de las consignas del desafío.
   nunca llegaron a leerse consistentes con la ilustración, así que el
   menú queda con el fondo pintado y quieto.
 
-## [1.6] — En desarrollo
+## [1.6] — Version entregada para la ronda 2
 
-Ronda de cierre del Multijugador: se prueba lo que nunca se había podido
-probar, se tapan los agujeros que esas pruebas dejaron a la vista, y se
-completan las partes del modo que estaban a medio terminar.
+Ronda de cierre del Multijugador: se prueba lo que nunca se había podido probar, se tapan los agujeros que esas pruebas dejaron a la vista, y se completan las partes del modo que estaban a medio terminar.
 
 ### Corrección: el juego iba lento
 
-Los tres modos corrían a **13-22 cuadros por segundo**, contra 117 del
-menú. La causa era una sola, y estaba repartida por todo el proyecto:
-**crear un `arcade.Text` dentro del dibujo**.
+Los tres modos corrían a 13-22 FPS contra 117 del menú. La causa: crear un `arcade.Text` dentro del dibujo cuesta 43x más que reusar uno existente (14,2 ms vs 0,3 ms), y se hacía en cada cuadro.
 
-Medido en esta máquina, con el mismo texto y la misma fuente:
-
-| operación | costo |
-|---|---|
-| crear un `arcade.Text` nuevo | **14,2 ms** |
-| cambiarle el valor a uno existente | 3,7 ms |
-| asignarle el valor que ya tenía | 0,3 ms |
-| dibujar uno ya creado | 0,3 ms |
-
-O sea que crear un texto cuesta **43 veces** más que dibujar uno guardado:
-arma el layout del texto de cero cada vez. Como la pantalla se redibuja 60
-veces por segundo, cada texto creado dentro del dibujo se pagaba entero en
-cada cuadro.
-
-- **El panel lateral** era el peor caso, y era culpa del rediseño por
-  secciones de esta misma versión: armaba el `Text` del título de cada
-  sección en cada cuadro. Solo el panel se llevaba casi todo el costo de
-  dibujar. Ahora el título se crea al acomodar la sección y se reusa.
-- **Los contadores de las sillas del Tutorial**: dos sillas, dos textos
-  nuevos por cuadro, 15 ms de los 24 que tardaba el modo.
-- **El Bestiario y la sala del Multijugador** creaban 11 y 7 textos por
-  cuadro. Se agregó `ui.etiqueta()`, que guarda cada texto por el ROL que
-  cumple en la pantalla —«el título del cuadro», «la tercera línea del
-  párrafo»— y solo le cambia el valor cuando hace falta.
-
-El resultado, contado sobre cuadros reales: **0 textos creados por cuadro
-en las seis pantallas**. Se eligió esa medida y no los cuadros por segundo
-porque el número de creaciones es determinista, mientras que el tiempo
-variaba mucho entre corridas.
-
-Los carteles de fin de partida siguen armando su texto al vuelo: se
-dibujan en un estado puntual, con confeti encima, donde un cuadro de más
-no se nota.
+- **Panel lateral**: armaba el título de cada sección en cada cuadro; ahora se crea una sola vez al acomodar la sección.
+- **Sillas del Tutorial**: 2 textos nuevos por cuadro se llevaban 15 de los 24 ms del modo.
+- **Bestiario y sala del Multijugador**: creaban 11 y 7 textos por cuadro. Se agregó `ui.etiqueta()`, que guarda cada texto por el rol que cumple y solo le cambia el valor.
+- Resultado: 0 textos creados por cuadro en las seis pantallas (se midió así, y no en FPS, porque las creaciones son deterministas y el tiempo variaba entre corridas). Los carteles de fin de partida siguen armando texto al vuelo: son puntuales y no se nota.
 
 ### Reorganización de archivos
 
-La raíz tenía diecinueve `.py` sueltos, mezclando los módulos del juego
-con las pruebas y con los scripts que generaron el arte. Leído de afuera
-da impresión de desorden, aunque cada archivo sea chico.
+La raíz tenía 19 `.py` sueltos mezclando juego, pruebas y generadores de arte.
 
-- Las pruebas pasan a **`pruebas/`** y los generadores de arte a
-  **`generacion/`**. En la raíz quedan solo los quince módulos que forman
-  el juego.
-- `assets/` tenía 59 archivos sueltos y mezclados; se parte en
-  **`assets/imagenes/`** (49) y **`assets/audio/`** (5).
-- **Los cinco `tileset_*.png` quedan sueltos en `assets/`** a propósito:
-  los archivos `.tsx` de Tiled los buscan por ruta relativa
-  (`../assets/tileset_fondo1.png`), así que moverlos obligaría a editar
-  los seis tilesets y arriesgaría los 20 mapas.
-- Las pruebas llevan un arranque que agrega la raíz al path de imports,
-  así se pueden correr paradas en la raíz (`python pruebas/pruebas_red.py`)
-  o entrando a la carpeta. Sin eso solo andarían como módulo.
-- Los generadores escriben en `assets/` resolviendo la ruta desde su
-  propia ubicación, no desde el directorio en el que se los ejecuta.
-- El árbol de archivos del README estaba desactualizado —no listaba
-  `viaje.py`, `tutorial.py`, `multijugador.py`, `red.py`, `habilidades.py`,
-  `panel.py` ni `ui.py`—. Se rehízo agrupando por rol: vistas, lógica
-  compartida, interfaz, recursos y lo que queda fuera del juego.
+- Pruebas → `pruebas/`, generadores de arte → `generacion/`. Quedan 15 módulos en la raíz.
+- `assets/` (59 archivos sueltos) se divide en `assets/imagenes/` (49) y `assets/audio/` (5). Los 5 `tileset_*.png` quedan sueltos a propósito: los `.tsx` de Tiled los referencian por ruta relativa, y moverlos arriesgaría los 20 mapas.
+- Pruebas y generadores resuelven sus rutas solos, sin depender de desde dónde se los ejecute.
+- README actualizado: faltaban `viaje.py`, `tutorial.py`, `multijugador.py`, `red.py`, `habilidades.py`, `panel.py` y `ui.py`.
 
-### Cuarta donación en Modo Viaje: la silla de ruedas
+### Cuarta donación en Modo Viaje: silla de ruedas
 
-Hasta acá la campaña tenía tres tipos de donación —comida, libros y
-juguetes—. Se suma la **silla de ruedas**, que ya aparecía en el Tutorial
-pero como mecánica: ahí hay que pasarle por al lado sin pisarla. Como
-donación se recoge pisándola, con exactamente las mismas reglas que las
-otras tres: suma al contador del panel, entra en el total de la campaña y
-el deshacer con Z la devuelve al mapa.
+Se suma a comida, libros y juguetes. Ya existía en el Tutorial como mecánica (esquivarla); acá se recoge pisándola, igual que las otras tres. No requirió lógica nueva, solo sumar el sprite a `constantes.py` (`tipo = sillas` en Tiled). El sprite se rehizo con PixelLab forzando la paleta de las otras tres donaciones (luminancia 39 → 96); prompts anotados en `generacion/generar_donaciones.py`.
 
-- No hizo falta lógica nueva: la recolección recorre `self.donaciones` sin
-  mirar el tipo, así que alcanzó con sumar el sprite al diccionario de
-  `constantes.py`. En Tiled se coloca con `tipo = sillas`.
-- El sprite se generó con PixelLab. El primer intento salió con marco gris
-  oscuro y quedaba como una mancha sobre el pasto —luminancia media 39
-  contra 111 de las otras tres—, así que se rehízo pidiendo marco claro y
-  **forzando la paleta de las tres donaciones existentes**, y quedó en 96.
-  Los dos prompts están anotados en `generacion/generar_donaciones.py`.
+### Submenús con interfaz unificada (`ui.py`, nuevo)
 
-### Submenús con la misma interfaz (`ui.py`, archivo nuevo)
+Antes solo Ajustes tenía cuadro con marco, título y pie; Bestiario y sala Multijugador eran texto suelto con márgenes repetidos a mano.
 
-Ajustes era el único submenú armado como interfaz: cuadro con marco
-nine-patch, título y pie de ayuda. El Inventario / Bestiario y la sala del
-Multijugador eran texto suelto sobre el fondo plano, y cada uno repetía a
-mano su encabezado y su pie, con márgenes distintos.
+- Cuadro, encabezado, pie y solapas quedan en un solo archivo; Ajustes también pasa a usarlos.
+- Bestiario: personajes y objetos dentro del cuadro, separados por una línea de la ficha del seleccionado; solapas con subrayado para distinguirse mejor.
+- Sala Multijugador: sus 5 pantallas comparten cuadro y medidas; la IP a dictar va en recuadro propio.
+- La opción elegida se marca con banda de fondo (sala y Ajustes).
 
-- Las piezas compartidas —el cuadro con su marco, el encabezado de
-  pantalla, el pie de ayuda y las solapas— quedan en un solo archivo, así
-  todas las pantallas se ven iguales y una corrección alcanza a todas.
-  Ajustes pasó a usarlas también, en vez de tener su propia copia.
-- **Bestiario**: los personajes y los objetos van adentro del cuadro, con
-  una línea que separa la grilla de la ficha del seleccionado. Las solapas
-  llevan subrayado además del color, porque el dorado sobre gris no se
-  distinguía de un vistazo y son la única pista de que ↑↓ cambia de
-  sección.
-- **Sala del Multijugador**: las cinco pantallas (menú, elección de
-  personaje, espera, IP y error) usan el mismo cuadro, con su tamaño y su
-  pie declarados en un solo lugar. La IP que hay que dictarle al otro
-  jugador va en un recuadro propio: era el dato importante y se perdía
-  entre el resto del texto.
-- La opción elegida se marca con una banda de fondo, en el menú de la sala
-  y en Ajustes.
+### Corrección: texto largo cortado a mitad de palabra
 
-### Corrección: el texto largo se cortaba a mitad de palabra
+El wrap automático de Arcade cambiaba de fuente en vocales acentuadas y cortaba justo ahí. Ahora el corte se calcula midiendo cada línea.
 
-En el Bestiario se leía «compartimento m / ás seguro» y «al avanzar la c /
-ampaña». El ajuste de línea automático de Arcade agrupa los glifos por
-fuente, y cuando la fuente en uso no trae una vocal acentuada cae a otra
-fuente para ese carácter: ese cambio abre un punto de corte justo antes
-del acento. Ahora el corte se calcula midiendo cada línea, y nunca parte
-una palabra.
+### Panel lateral por secciones (`panel.py`, nuevo)
 
-### Panel lateral rearmado por secciones (`panel.py`, archivo nuevo)
+Cada texto llevaba su Y escrita a mano, causando choques entre bloques (ya registrados en 1.5).
 
-Cada texto del panel llevaba su posición vertical escrita a mano
-—`ALTO_VENTANA - 404`, `- 420`, `- 452`—, así que un modo que quería sumar
-un bloque tenía que saber en qué píxel había dejado las cosas el modo del
-que heredaba y correr a mano los de abajo. De ahí salieron los dos choques
-que ya estaban registrados en la 1.5: la llave sobre el bloque de
-personaje, y los controles sobre el recordatorio del pie.
-
-- Ahora cada modo declara **qué secciones tiene y en qué orden**, y las
-  posiciones se calculan solas. Insertar un bloque en el medio no obliga a
-  tocar ningún otro.
-- El mismo armador lo usan Infinito, Viaje, Multijugador y **Tutorial**,
-  que no hereda de `Juego` pero tenía el mismo panel con los mismos
-  números a mano.
-- Las secciones se dibujan desde la misma lista que las acomoda, así que
-  ya no puede pasar que un modo posicione un texto y se olvide de
-  dibujarlo, o al revés.
-- **El espacio sobrante se reparte** entre las separaciones, con un tope.
-  Antes Infinito usaba el 34% del alto del panel, con un hueco de 88px en
-  el medio mientras los títulos rozaban sus números.
-- Si el contenido no entra, las separaciones **se aprietan** hasta un piso
-  antes que dejar que un bloque se salga del panel, y si aun así no entra
-  se avisa por consola en vez de dibujar texto cortado por abajo.
-- Cada sección lleva una **regla fina** desde el título hasta el margen
-  derecho, que agrupa visualmente sin sumar un solo texto más.
-- Los textos se anclan por su borde superior (`anchor_y="top"`), que es lo
-  que permite apilarlos sin cuentas: Arcade acomoda las líneas hacia
-  abajo, multilínea incluido.
-
-Para que la campaña entrara —le faltaban 125px— se recortó lo que
-duplicaba información en vez de achicar la tipografía:
-
-- **Se sacó el recordatorio del pie** (`R=nivel  N=inicio  ESC=menu`), que
-  repetía palabra por palabra lo que ya dice el bloque CONTROLES.
-- El indicador de llave pierde su encabezado propio: una línea con su
-  ícono alcanza, y una sección entera para un sí/no gastaba 20px.
-- Los textos de misión y controles dejan de traer saltos de línea a mano.
-  Cortarlos a mano desperdiciaba media columna del panel y sumaba líneas
-  de más; ahora se acomodan al ancho disponible.
+- Cada modo declara qué secciones tiene y en qué orden; las posiciones se calculan solas. Lo usan Infinito, Viaje, Multijugador y Tutorial.
+- El espacio sobrante se reparte entre separaciones (con tope); si no entra, se aprieta hasta un piso o avisa por consola en vez de cortar texto.
+- Cada sección lleva una regla fina de separación visual.
+- Para hacer entrar la campaña (faltaban 125px): se sacó el recordatorio de pie duplicado, la llave perdió su encabezado propio, y misión/controles dejan de tener saltos de línea a mano.
 
 ### Los personajes miran hacia donde caminaron
 
-El arte de la familia está dibujado de perfil **mirando hacia la
-derecha** —la mochila queda del lado izquierdo del cuerpo y la cara del
-derecho—, pero se dibujaba siempre igual, así que al caminar hacia la
-izquierda el personaje avanzaba de espaldas.
+El arte mira a la derecha por defecto; antes no se espejaba nunca.
 
-- Caminar a la izquierda espeja la textura; a la derecha se dibuja tal
-  cual. No hicieron falta hojas nuevas. Arrancan mirando a la derecha, que
-  además es hacia donde suele quedar el portal.
-- **Arriba y abajo conservan hacia dónde miraba**, en vez de girarlo al
-  azar: no hay arte de frente ni de espaldas, y es lo que hacen los juegos
-  de grilla con vista lateral.
-- Vale en los cuatro modos. En Multijugador la orientación es de cada
-  jugador —igual que «moviendose»— y **viaja con el estado**, porque el
-  invitado no resuelve movimientos ni siquiera los suyos: sin eso se
-  verían los dos mirando siempre para el mismo lado.
-- El deshacer del Modo Viaje también revierte la orientación, o el
-  personaje quedaba mirando hacia donde ya no había caminado.
-- Las texturas espejadas se cachean por `cache_name`: `flip_left_right()`
-  construye una textura nueva en cada llamada, y esto corre una vez por
-  personaje por cuadro.
+- Caminar a la izquierda espeja la textura (sin hojas nuevas); arriba/abajo conservan la orientación previa.
+- Vale en los 4 modos; en Multijugador viaja con el estado del invitado (que no resuelve sus propios movimientos).
+- El deshacer de Viaje también revierte la orientación.
+- Texturas espejadas cacheadas por `cache_name` (antes se reconstruían cada cuadro).
 
 ### Pantalla de cierre del Multijugador
 
-Al completar el nivel 10 se prendía `juego_completado` en los dos lados y
-**nadie lo dibujaba**: la pareja quedaba en la pantalla de victoria del
-último nivel, tirando confeti, con ESC como única salida. Ahora hay un
-cierre propio, con los totales del equipo:
+Al completar el nivel 10, `juego_completado` se prendía pero nadie lo dibujaba.
 
-- Tiempo total de la partida, pasos del equipo y puntaje. Los pasos y los
-  objetos se acumulan nivel a nivel, porque `setup()` los pisa en cada
-  mapa nuevo y al terminar el décimo ya no quedaría nada que mostrar.
-- El conteo de objetos aparece solo si el recorrido tenía alguno, para no
-  mostrar un «0/0» mientras los mapas todavía no los tienen.
-- **R vuelve a empezar desde el nivel 1**, y solo lo puede hacer el
-  anfitrión: si cada uno reiniciara por su lado terminarían jugando mapas
-  distintos. Al invitado se le muestra un pie diferente, para no
-  ofrecerle una tecla que no le va a hacer nada.
-- El cronómetro se congela entre niveles, al terminar y si se corta la
-  conexión.
+- Nueva pantalla con tiempo total, pasos y puntaje del equipo (acumulados nivel a nivel); conteo de objetos solo si el recorrido tenía alguno.
+- R reinicia desde el nivel 1, pero solo el anfitrión puede (evita que cada uno reinicie mapas distintos); el invitado ve un pie distinto.
+- Cronómetro se congela entre niveles, al terminar y si se corta la conexión.
 
 ### Selección de personaje en el Multijugador
 
-Los dos jugadores eran siempre UAIBOT y UAIBOTA, fijos en el código, así
-que UAIBOTINA y UAIBOTINO no se podían jugar en cooperativo y con ellos
-quedaban afuera la Guía y el Alcance.
+Antes los jugadores eran siempre UAIBOT y UAIBOTA fijos.
 
-- La sala suma un paso de **elección**, con los cuatro de la familia, su
-  habilidad y qué hace. La habilidad se muestra al elegir porque en
-  cooperativo es lo que define qué aporta cada uno al equipo.
-- **Si los dos eligen el mismo, el anfitrión se queda con el suyo y al
-  invitado se le da otro.** El choque se resuelve ahí y no en la sala
-  porque el invitado no puede saber con quién eligió jugar el anfitrión
-  antes de conectarse: recién cuando están los dos hay con qué comparar.
-- El par elegido viaja con el resto del estado, así que no hizo falta un
-  mensaje de vuelta: el anfitrión sigue siendo la única autoridad también
-  para esto.
-- La elección no depende de los desbloqueos del Modo Viaje. Si dependiera,
-  una instalación nueva tendría solo a UAIBOT y los dos jugadores no
-  podrían siquiera tener personajes distintos.
-- ESC en la elección vuelve un paso atrás, no al menú principal: es fácil
-  entrar sin querer y perder la partida que se estaba por crear.
+- Nueva sala de elección con los 4 personajes, su habilidad y qué hace.
+- Si eligen el mismo, el anfitrión se lo queda y al invitado se le asigna otro (se resuelve recién cuando están los dos conectados).
+- La elección no depende de los desbloqueos de Viaje.
+- ESC en la elección vuelve un paso atrás, no al menú.
 
 ### Pruebas automáticas
 
-Hasta acá el proyecto no tenía ninguna prueba automática, y el
-Multijugador era la parte más difícil de probar a mano: hace falta que
-dos personas se conecten para llegar a los casos raros. Ahora esos casos
-se recorren solos, en segundos y en una sola computadora.
+Primeras pruebas del proyecto; antes el Multijugador solo se probaba a mano con dos personas.
 
-- **`pruebas/pruebas_red.py`** prueba la capa de red sola, sin abrir el juego:
-  conexión, ida y vuelta de mensajes, mensajes que llegan pegados o
-  cortados a la mitad (que es lo que este protocolo existe para
-  resolver), basura en el medio del flujo, caída de cada lado, IP mal
-  tipeada y puerto ocupado. Es la prueba a la que ya remitía el
-  comentario de cabecera de `red.py`, que hasta ahora no existía.
-- **`pruebas/pruebas_multijugador.py`** levanta un anfitrión y un invitado de
-  verdad, conectados por un socket, y verifica que los dos terminen
-  viendo lo mismo: arranque, movimiento de cada lado, la regla de no
-  pisarse, el sendero compartido, la llave que abre puertas para los
-  dos, el cambio de nivel, la pantalla de cierre, el reinicio y la
-  desconexión a mitad de partida. También comprueba que un pedido
-  imposible del invitado no los deje desincronizados, y que los dos lados
-  lleguen al mismo puntaje —que no viaja por la red, sino que cada lado
-  calcula por su cuenta.
-- Las dos se corren con `python pruebas/pruebas_red.py` y
-  `python pruebas/pruebas_multijugador.py`. Están separadas a propósito: si la
-  primera pasa y la segunda falla, el problema es de la lógica del
-  juego y no de la red.
+- `pruebas/pruebas_red.py`: capa de red sola (conexión, mensajes cortados/pegados, basura en el flujo, caída de cada lado, IP mal tipeada, puerto ocupado).
+- `pruebas/pruebas_multijugador.py`: anfitrión e invitado reales conectados por socket — arranque, movimiento, sendero compartido, llave, cambio de nivel, cierre, reinicio, desconexión a mitad de partida, sincronía ante pedidos imposibles y puntaje calculado igual en ambos lados.
+- Se corren por separado a propósito, para aislar si una falla es de red o de lógica del juego.
 
 ### Correcciones
 
-- **Crear dos partidas en la misma computadora no daba error, y las dos
-  quedaban escuchando el mismo puerto.** `red.py` usaba `SO_REUSEADDR`,
-  que no significa lo mismo en todos los sistemas: en Linux y Mac solo
-  permite reabrir un puerto recién cerrado, pero en Windows permite
-  además robarle el puerto a un socket que lo está usando ahora mismo.
-  Como el juego mismo sugiere en pantalla abrirlo dos veces para probar
-  en una sola PC, era un camino fácil de encontrar. Ahora en Windows se
-  reserva el puerto en exclusiva con `SO_EXCLUSIVEADDRUSE` y la segunda
-  partida avisa que el puerto está ocupado.
-- **El puntaje del Multijugador se estaba guardando en el highscore
-  general**, en contra de lo que decía su propio código: `_guardar_progreso`
-  está sobrescrito en vacío con el comentario de que no tendría sentido
-  guardar un récord que depende de con quién se jugó, pero
-  `_completar_nivel` llamaba a `actualizar_highscore` por afuera de ese
-  método. Ahora hay una costura, `_persiste_highscore`, que el
-  Multijugador cierra; Infinito, Tutorial y Viaje no cambian. Lo único que
-  el cooperativo sí deja guardado son los objetos conseguidos, que son una
-  colección y no un récord.
-- **El sonido de movimiento se pedía como `Moverse.wav` pero el archivo
-  se llamaba `moverse.wav`.** En Windows funcionaba de casualidad,
-  porque no distingue mayúsculas de minúsculas en los nombres de
-  archivo; en Linux o Mac el juego se caía al entrar a cualquier
-  partida. El archivo pasa a llamarse `Moverse.wav`, igual que el resto
-  de los sonidos.
+- **Puerto compartido en Windows**: `SO_REUSEADDR` en Windows permite robarle el puerto a un socket en uso (no pasa en Linux/Mac). Ahora se usa `SO_EXCLUSIVEADDRUSE` en Windows y se avisa si el puerto está ocupado.
+- **Highscore del Multijugador se guardaba de más**: `_completar_nivel` llamaba a `actualizar_highscore` por fuera del método pensado para evitarlo. Se agrega la costura `_persiste_highscore` que el Multijugador cierra; solo quedan guardados los objetos conseguidos.
+- **`Moverse.wav`/`moverse.wav`**: el mismatch de mayúsculas rompía el juego en Linux/Mac (Windows lo toleraba). Unificado a `Moverse.wav`.
 
 ### Limpieza
 
-- Se borran las tres hojas de las animaciones del fondo del menú
-  (`nubes_anim.png`, `pajaros_anim.png`, `luciernagas_anim.png`), que
-  quedaron sin usar al descartarse esa idea.
-- Se borra `muro.png`, que no lo referenciaba ningún código ni ningún
-  mapa desde antes de la Ronda 2.
+- Se borran `nubes_anim.png`, `pajaros_anim.png`, `luciernagas_anim.png` (animaciones descartadas del fondo del menú) y `muro.png` (sin referencias desde antes de Ronda 2).

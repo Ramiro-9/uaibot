@@ -116,7 +116,7 @@
   </object>
   <object id="10" name="objeto" x="1347.16" y="389.181">
    <properties>
-    <property name="objeto" value="farol"/>
+    <property name="objeto" value="taza"/>
    </properties>
    <point/>
   </object>
