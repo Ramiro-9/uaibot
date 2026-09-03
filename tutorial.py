@@ -20,6 +20,7 @@ import math
 import arcade
 
 import guardado
+import panel as pnl
 import sprites as spr
 from constantes import *
 from juego import Particula  # se reutiliza el confeti de victoria tal cual
@@ -62,6 +63,7 @@ class Tutorial(arcade.View):
     sistema de vistas (menu -> tutorial -> menu)."""
 
     def __init__(self, controles="flechas"):
+        """Crea la vista del Tutorial. El nivel se arma en setup()."""
         super().__init__()
         self.controles = controles
         self._cargar_assets()
@@ -82,6 +84,17 @@ class Tutorial(arcade.View):
             pos: {"requeridas": req, "recolectadas": 0, "excedido": False}
             for pos, req in SILLAS_FIJAS.items()
         }
+        # El contador de cada silla, creado una sola vez. Crear un
+        # arcade.Text cuesta unos 8 ms —arma el layout del texto de cero—,
+        # así que hacerlo en el dibujo era casi todo el costo del cuadro en
+        # este modo: dos sillas se llevaban 15 ms de los 24 que tardaba.
+        # Acá solo se les cambia el valor cuando cambia el conteo.
+        self.txt_sillas_celda = {
+            (col, fila): arcade.Text(
+                "", *self._celda_a_px(col, fila), arcade.color.WHITE, 9,
+                anchor_x="center", anchor_y="center", bold=True)
+            for (col, fila) in self.sillas
+        }
 
         self.col, self.fila = POS_INICIO
         self.sendero      = {POS_INICIO}   # compartido entre los 4 personajes
@@ -91,6 +104,8 @@ class Tutorial(arcade.View):
         self.personaje_activo = 0
         self.pasos_restantes  = {p["id"]: MAX_PASOS_PERSONAJE for p in PERSONAJES_FAMILIA}
         self.pasos            = 0
+        # El arte está de perfil hacia la derecha: True es lo natural.
+        self.mirando_derecha  = True
 
         self.tiempo_transcurrido = 0.0
         self.estado       = "jugando"   # jugando | ingresando_nombre | victoria | perdido
@@ -109,6 +124,9 @@ class Tutorial(arcade.View):
         self._crear_textos()
         self._actualizar_texto_personajes()
         self._actualizar_texto_recursos()
+        # Después de llenar los textos: acomodar salta las secciones cuyo
+        # cuerpo está vacío, y la de personajes se llena recién acá.
+        self._acomodar_panel()
 
         self.px_x, self.px_y      = self._celda_a_px(*POS_INICIO)
         self.moviendose           = False
@@ -117,6 +135,7 @@ class Tutorial(arcade.View):
     # ── Construcción de capas estáticas (mismo patrón de SpriteList que
     # juego.py usa para no dibujar celda por celda en cada frame) ─────────────
     def _crear_sprite_celda(self, path, col, fila, color_fallback, forzar_color=False):
+        """Un sprite de fondo ubicado en una celda de la grilla."""
         x, y = self._celda_a_px(col, fila)
         tex = None if forzar_color else spr.cargar(path)
         if tex:
@@ -173,6 +192,7 @@ class Tutorial(arcade.View):
 
     def _reconstruir_sendero_sprites(self):
         """Rearma la SpriteList del sendero desde self.sendero/direcciones.
+
         Se usa al deshacer (Z), en vez de tratar de revertir sprite por
         sprite — mismo criterio que _reconstruir_cajas_sprites en juego.py."""
         self.sendero_sprites = arcade.SpriteList()
@@ -181,6 +201,7 @@ class Tutorial(arcade.View):
 
     # ── Carga de assets ──────────────────────────────────────────────────────
     def _cargar_assets(self):
+        """Carga texturas y sonidos una sola vez por partida."""
         # Animaciones de los cuatro personajes: cada uno con su arte propio si
         # lo tiene, o las hojas de UAIBOT teñidas si todavía no. La cantidad de
         # frames sale del ancho de cada hoja, así conviven hojas de distinto
@@ -200,15 +221,16 @@ class Tutorial(arcade.View):
         self.sprites_personaje = arcade.SpriteList()
         self.sprites_personaje.append(self.sprite_personaje)
 
-        self.img_merendero = arcade.load_texture("assets/merendero.png")
+        self.img_merendero = arcade.load_texture("assets/imagenes/merendero.png")
 
-        self.snd_mover    = arcade.load_sound("assets/Moverse.wav")
-        self.snd_no_mover = arcade.load_sound("assets/NoMoverse.wav")
-        self.snd_victoria = arcade.load_sound("assets/CompletedLevel.wav")
-        self.musica       = arcade.load_sound("assets/GameLevelMusic.wav")
+        self.snd_mover    = arcade.load_sound("assets/audio/Moverse.wav")
+        self.snd_no_mover = arcade.load_sound("assets/audio/NoMoverse.wav")
+        self.snd_victoria = arcade.load_sound("assets/audio/CompletedLevel.wav")
+        self.musica       = arcade.load_sound("assets/audio/GameLevelMusic.wav")
 
     # ── Textos del panel ─────────────────────────────────────────────────────
     def _crear_textos(self):
+        """Arma los textos del panel lateral y de los overlays."""
         px = ANCHO_JUEGO
         pw = PANEL_ANCHO
         cx = px + pw // 2
@@ -220,48 +242,33 @@ class Tutorial(arcade.View):
         self.txt_modo   = arcade.Text("TUTORIAL", cx, ALTO_VENTANA - 85,
                                        arcade.color.WHITE, 13, anchor_x="center", bold=True)
 
-        self.txt_mision_titulo = arcade.Text("MISION", px + 16, ALTO_VENTANA - 115,
-                                              arcade.color.GOLD, 11, bold=True)
+        # ── Textos del panel ─────────────────────────────────────────
+        # Sin posición vertical: la reparte panel.acomodar() según el orden
+        # de _secciones_panel. Es el mismo armador que usa Juego, aunque
+        # Tutorial no herede de él.
+        x = px + pnl.MARGEN_X
+        ancho_texto = pw - pnl.MARGEN_X * 2
+
         # El texto es explícito con las sillas a propósito: "pasa por las
         # sillas" se entendía como "pisalas", que es justo lo que NO hay
         # que hacer.
-        self.txt_mision = arcade.Text(
-            "Junta la comida (hexagonos)\npisandola.\n"
-            "Las sillas (triangulos) no\nse pisan: pasa por su lado\n"
-            "las veces justas.",
-            px + 16, ALTO_VENTANA - 133, (200, 200, 200), 9, multiline=True, width=pw - 32)
+        self.txt_mision = pnl.crear_texto(
+            "Junta la comida (hexagonos) pisandola. Las sillas (triangulos) "
+            "no se pisan: pasa por su lado las veces justas.",
+            x, 9, (200, 200, 200), ancho=ancho_texto)
 
-        self.txt_pasos_titulo = arcade.Text("PASOS TOTALES", px + 16, ALTO_VENTANA - 228,
-                                             arcade.color.GOLD, 11, bold=True)
-        self.txt_pasos        = arcade.Text("0", px + 16, ALTO_VENTANA - 252,
-                                             (200, 200, 200), 22, bold=True)
+        self.txt_pasos      = pnl.crear_texto("0", x, 22, (200, 200, 200), bold=True)
+        self.txt_cronometro = pnl.crear_texto("0.0s", x, 18, (200, 200, 200), bold=True)
+        self.txt_personajes = pnl.crear_texto("", x, 11, (200, 200, 200),
+                                              ancho=ancho_texto)
+        self.txt_comida = pnl.crear_texto("Comida: 0/0", x, 11, (200, 200, 200))
+        self.txt_sillas = pnl.crear_texto("Sillas de ruedas: 0/0 celdas OK",
+                                          x, 11, (200, 200, 200))
 
-        self.txt_cronometro_titulo = arcade.Text("TIEMPO", px + 16, ALTO_VENTANA - 284,
-                                                   arcade.color.GOLD, 11, bold=True)
-        self.txt_cronometro        = arcade.Text("0.0s", px + 16, ALTO_VENTANA - 308,
-                                                   (200, 200, 200), 18, bold=True)
-
-        self.txt_personajes_titulo = arcade.Text("PERSONAJES (C)", px + 16, ALTO_VENTANA - 336,
-                                                   arcade.color.GOLD, 11, bold=True)
-        self.txt_personajes        = arcade.Text("", px + 16, ALTO_VENTANA - 358,
-                                                   (200, 200, 200), 11, multiline=True, width=pw - 32)
-
-        self.txt_recursos_titulo = arcade.Text("RECOLECCION", px + 16, ALTO_VENTANA - 440,
-                                                 arcade.color.GOLD, 11, bold=True)
-        self.txt_comida = arcade.Text("Comida: 0/0", px + 16, ALTO_VENTANA - 460,
-                                       (200, 200, 200), 11)
-        self.txt_sillas = arcade.Text("Sillas de ruedas: 0/0 celdas OK", px + 16, ALTO_VENTANA - 478,
-                                       (200, 200, 200), 11)
-
-        self.txt_controles_titulo = arcade.Text("CONTROLES", px + 16, ALTO_VENTANA - 510,
-                                                  arcade.color.GOLD, 11, bold=True)
-        controles_texto = (
-            "WASD: mover\nC: cambiar personaje\nZ: deshacer\nR: reiniciar\nESC: menu"
-            if self.controles == "wasd" else
-            "Flechas: mover\nC: cambiar personaje\nZ: deshacer\nR: reiniciar\nESC: menu"
-        )
-        self.txt_controles = arcade.Text(controles_texto, px + 16, ALTO_VENTANA - 534,
-                                          (200, 200, 200), 10, multiline=True, width=pw - 32)
+        mover = "WASD" if self.controles == "wasd" else "Flechas"
+        self.txt_controles = pnl.crear_texto(
+            f"{mover}: mover\nC: personaje     Z: deshacer\nR: reiniciar     ESC: menu",
+            x, 10, (200, 200, 200), ancho=ancho_texto)
 
         self.txt_victoria = arcade.Text("MISION CUMPLIDA", ANCHO_JUEGO // 2, ALTO_VENTANA // 2 + 50,
                                          arcade.color.GOLD, 30, anchor_x="center", anchor_y="center", bold=True)
@@ -279,6 +286,8 @@ class Tutorial(arcade.View):
                                              (150, 150, 150), 12, anchor_x="center", anchor_y="center")
 
     def _actualizar_texto_personajes(self):
+        """Refresca la lista del panel: quién está activo y cuántos pasos le
+        quedan a cada uno."""
         lineas = []
         for i, p in enumerate(PERSONAJES_FAMILIA):
             marca      = "» " if i == self.personaje_activo else "  "
@@ -287,6 +296,7 @@ class Tutorial(arcade.View):
         self.txt_personajes.value = "\n".join(lineas)
 
     def _actualizar_texto_recursos(self):
+        """Refresca los contadores de comida y de sillas de ruedas."""
         total      = len(COMIDA_FIJA)
         recolectada = total - len(self.comida_pendiente)
         self.txt_comida.value = f"Comida: {recolectada}/{total}"
@@ -296,19 +306,27 @@ class Tutorial(arcade.View):
 
     # ── Detección de teclas según esquema de controles ─────────────────────────
     def _tecla_arriba(self, symbol):
+        """Si la tecla apretada es la de subir, según los controles elegidos."""
         return symbol == (arcade.key.W if self.controles == "wasd" else arcade.key.UP)
 
     def _tecla_abajo(self, symbol):
+        """Si la tecla apretada es la de bajar, según los controles elegidos."""
         return symbol == (arcade.key.S if self.controles == "wasd" else arcade.key.DOWN)
 
     def _tecla_izquierda(self, symbol):
+        """Si la tecla apretada es la de ir a la izquierda."""
         return symbol == (arcade.key.A if self.controles == "wasd" else arcade.key.LEFT)
 
     def _tecla_derecha(self, symbol):
+        """Si la tecla apretada es la de ir a la derecha."""
         return symbol == (arcade.key.D if self.controles == "wasd" else arcade.key.RIGHT)
 
     # ── Eventos de teclado ──────────────────────────────────────────────────
     def on_key_press(self, symbol, modifiers):
+        """Reparte cada tecla según el estado del nivel.
+
+        Mientras se juega: mover, cambiar de personaje con C y deshacer
+        con Z. Al ganar, el teclado pasa a escribir el nombre."""
         if self.estado == "ingresando_nombre":
             if symbol == arcade.key.ENTER:
                 self._confirmar_nombre()
@@ -342,6 +360,7 @@ class Tutorial(arcade.View):
             self._volver_al_menu()
 
     def on_key_release(self, symbol, modifiers):
+        """Corta el movimiento continuo al soltar la tecla."""
         if symbol in (arcade.key.UP, arcade.key.DOWN, arcade.key.LEFT, arcade.key.RIGHT,
                       arcade.key.W, arcade.key.A, arcade.key.S, arcade.key.D):
             self.caminando    = False
@@ -355,6 +374,7 @@ class Tutorial(arcade.View):
             self.nombre_input += text
 
     def _volver_al_menu(self):
+        """Deja el Tutorial, apagando la música antes de salir."""
         if hasattr(self, "musica_player") and self.musica_player:
             arcade.stop_sound(self.musica_player)
             self.musica_player = None
@@ -463,10 +483,12 @@ class Tutorial(arcade.View):
                     info["excedido"] = True
 
     def _hay_sillas_incompletas(self):
+        """Si queda alguna silla sin las pasadas justas que pide."""
         return any(info["recolectadas"] != info["requeridas"] for info in self.sillas.values())
 
     def _intentar_mover(self, dc, df):
         """Intenta mover al personaje activo en la dirección (dc, df).
+
         El sendero, los pasos totales y las paredes son compartidos por
         los 4 personajes; solo el cupo de pasos restantes es individual."""
         if self.estado != "jugando":
@@ -488,6 +510,7 @@ class Tutorial(arcade.View):
 
         self.col, self.fila = nc, nf
         self.direcciones[(nc, nf)] = (dc, df)
+        self.mirando_derecha = spr.mirada_segun(dc, self.mirando_derecha)
         self.sendero.add((nc, nf))
         self._agregar_huella(nc, nf)
         self.pasos += 1
@@ -520,6 +543,7 @@ class Tutorial(arcade.View):
         self._verificar_personaje_agotado()
 
     def _ganar_nivel(self):
+        """Cierra el nivel y pasa a pedir el nombre del jugador."""
         self.estado       = "ingresando_nombre"
         self.nombre_input = ""
         arcade.play_sound(self.snd_victoria)
@@ -528,6 +552,8 @@ class Tutorial(arcade.View):
             self.musica_player = None
 
     def _confirmar_nombre(self):
+        """Guarda nombre y tiempo en el .txt de puntajes (consigna 4) y
+        muestra la pantalla de victoria."""
         guardado.registrar_puntaje_tutorial(self.nombre_input, self.tiempo_transcurrido)
         self.estado = "victoria"
         for _ in range(80):
@@ -535,6 +561,7 @@ class Tutorial(arcade.View):
 
     # ── Actualización ─────────────────────────────────────────────────────────
     def on_update(self, delta_time):
+        """Un cuadro del Tutorial: animación, movimiento y cronómetro."""
         self.timer_frame += 1
         if self.timer_frame >= self.velocidad_frame:
             self.timer_frame  = 0
@@ -568,6 +595,7 @@ class Tutorial(arcade.View):
 
     # ── Dibujo ────────────────────────────────────────────────────────────────
     def on_draw(self):
+        """Dibuja el nivel, el panel y el overlay que corresponda."""
         self.window.clear((20, 28, 36))
 
         self.fondo_sprites.draw()
@@ -590,11 +618,13 @@ class Tutorial(arcade.View):
             self._dibujar_overlay_perdido()
 
     def _celda_a_px(self, col, fila):
+        """Convierte coordenadas de grilla al centro de la celda en píxeles."""
         x = col * TAM_CELDA + TAM_CELDA // 2
         y = fila * TAM_CELDA + TAM_CELDA // 2
         return x, y
 
     def _dibujar_hexagono(self, cx, cy, radio, color):
+        """Dibuja un hexágono relleno con su contorno, para la comida."""
         puntos = [
             (cx + radio * math.cos(math.radians(60 * i - 30)),
              cy + radio * math.sin(math.radians(60 * i - 30)))
@@ -645,12 +675,11 @@ class Tutorial(arcade.View):
             arcade.draw_polygon_filled(puntos, color)
             arcade.draw_polygon_outline(puntos, (0, 0, 0), 2)
 
-            if info["excedido"]:
-                etiqueta = "de mas!"
-            else:
-                etiqueta = f"{info['recolectadas']}/{info['requeridas']}"
-            arcade.Text(etiqueta, x, y - radio - 12, arcade.color.WHITE, 9,
-                        anchor_x="center", bold=True).draw()
+            etiqueta = self.txt_sillas_celda[(col, fila)]
+            etiqueta.value = ("de mas!" if info["excedido"]
+                              else f"{info['recolectadas']}/{info['requeridas']}")
+            etiqueta.y = y - radio - 12
+            etiqueta.draw()
 
     def _marcar_lados_de_silla(self, col, fila):
         """Dibuja un recuadro punteado en cada celda vecina por la que aún
@@ -689,45 +718,61 @@ class Tutorial(arcade.View):
         return self.familia[PERSONAJES_FAMILIA[self.personaje_activo]["id"]]
 
     def _frames_activos(self):
+        """Los frames que toca mostrar: caminando o quieto."""
         datos = self._animacion_activa()
         return datos["walk"] if self.moviendose else datos["idle"]
 
     def _dibujar_personaje(self):
+        """Dibuja al personaje activo en su posición interpolada."""
         frames = self._frames_activos()
-        self.sprite_personaje.texture  = frames[self.frame_actual % len(frames)]
+        self.sprite_personaje.texture  = spr.orientar(
+            frames[self.frame_actual % len(frames)], self.mirando_derecha)
         self.sprite_personaje.color    = self._animacion_activa()["color"]
         self.sprite_personaje.center_x = self.px_x
         self.sprite_personaje.center_y = self.px_y
         self.sprites_personaje.draw()
 
     def _dibujar_anuncio_nivel(self):
+        """Cartel de arranque del nivel, que se desvanece solo."""
         alpha = int(255 * min(1.0, (120 - self.timer_anuncio) / 30))
         arcade.draw_lrbt_rectangle_filled(0, ANCHO_JUEGO, 0, ALTO_VENTANA, (0, 0, 0, 150))
         arcade.Text("TUTORIAL", ANCHO_JUEGO // 2, ALTO_VENTANA // 2,
                     (*arcade.color.GOLD[:3], alpha), 42,
                     anchor_x="center", anchor_y="center", bold=True).draw()
 
+    # Igual que en Juego: el panel va entre el encabezado fijo y el borde.
+    x_iconos      = ANCHO_JUEGO + PANEL_ANCHO - 26
+    y_panel_desde = ALTO_VENTANA - 110
+    y_panel_hasta = 20
+
+    def _secciones_panel(self):
+        """Qué muestra el panel del Tutorial, de arriba hacia abajo."""
+        return [
+            pnl.Seccion("MISION", self.txt_mision),
+            pnl.Seccion("PASOS TOTALES", self.txt_pasos, icono=ICONO_PASOS),
+            pnl.Seccion("TIEMPO", self.txt_cronometro, icono=ICONO_RELOJ),
+            pnl.Seccion("PERSONAJES (C)", self.txt_personajes),
+            pnl.Seccion("RECOLECCION", [self.txt_comida, self.txt_sillas]),
+            pnl.Seccion("CONTROLES", self.txt_controles),
+        ]
+
+    def _acomodar_panel(self):
+        """Reparte las secciones del panel lateral (ver panel.py)."""
+        self.secciones_panel = pnl.acomodar(
+            self._secciones_panel(), self.y_panel_desde, self.y_panel_hasta)
+
     def _dibujar_panel(self):
+        """Dibuja el panel lateral derecho con toda la información."""
         arcade.draw_lrbt_rectangle_filled(ANCHO_JUEGO, ANCHO_VENTANA, 0, ALTO_VENTANA, (30, 39, 46))
         arcade.draw_line(ANCHO_JUEGO, 0, ANCHO_JUEGO, ALTO_VENTANA, (52, 152, 219), 2)
         self.txt_titulo.draw()
         self.txt_ofirca.draw()
         self.txt_modo.draw()
-        self.txt_mision_titulo.draw()
-        self.txt_mision.draw()
-        self.txt_pasos_titulo.draw()
-        self.txt_pasos.draw()
-        self.txt_cronometro_titulo.draw()
-        self.txt_cronometro.draw()
-        self.txt_personajes_titulo.draw()
-        self.txt_personajes.draw()
-        self.txt_recursos_titulo.draw()
-        self.txt_comida.draw()
-        self.txt_sillas.draw()
-        self.txt_controles_titulo.draw()
-        self.txt_controles.draw()
+        pnl.dibujar(self.secciones_panel, ANCHO_JUEGO, ANCHO_VENTANA,
+                    self.x_iconos, spr.dibujar_icono)
 
     def _dibujar_overlay_nombre(self):
+        """Pantalla donde el jugador escribe su nombre al ganar."""
         arcade.draw_lrbt_rectangle_filled(0, ANCHO_JUEGO, 0, ALTO_VENTANA, (0, 0, 0, 200))
         cx, cy = ANCHO_JUEGO // 2, ALTO_VENTANA // 2
         arcade.Text("¡LLEGASTE AL MERENDERO!", cx, cy + 70, arcade.color.GOLD, 26,
@@ -740,6 +785,7 @@ class Tutorial(arcade.View):
                     arcade.color.WHITE, 22, anchor_x="center", anchor_y="center", bold=True).draw()
 
     def _dibujar_overlay_victoria(self):
+        """Pantalla de victoria, con el tiempo y el confeti."""
         arcade.draw_lrbt_rectangle_filled(0, ANCHO_JUEGO, 0, ALTO_VENTANA, (0, 0, 0, 180))
         for p in self.particulas:
             p.dibujar()
@@ -749,6 +795,7 @@ class Tutorial(arcade.View):
         self.txt_victoria_sub.draw()
 
     def _dibujar_overlay_perdido(self):
+        """Pantalla de derrota cuando ya no quedan pasos."""
         arcade.draw_lrbt_rectangle_filled(0, ANCHO_JUEGO, 0, ALTO_VENTANA, (0, 0, 0, 180))
         self.txt_perdido.draw()
         self.txt_perdido_sub.draw()

@@ -11,6 +11,7 @@ _cache = {}
 
 def cargar(path):
     """Carga una textura si el archivo existe, sino retorna None.
+
     Usa caché para evitar lecturas repetidas del disco."""
     if path in _cache:
         return _cache[path]
@@ -23,6 +24,7 @@ def cargar(path):
 
 def dibujar_celda(path, col, fila, tam):
     """Intenta dibujar una celda con su imagen correspondiente.
+
     Retorna True si pudo dibujar la imagen, False si no existe
     (en ese caso el código principal dibuja el color de fallback)."""
     tex = cargar(path)
@@ -36,8 +38,8 @@ def dibujar_celda(path, col, fila, tam):
 
 # Hojas de UAIBOT: son también el respaldo de los personajes que todavía no
 # tienen arte propio.
-HOJA_IDLE = "assets/Idle.png"
-HOJA_WALK = "assets/Walk.png"
+HOJA_IDLE = "assets/imagenes/Idle.png"
+HOJA_WALK = "assets/imagenes/Walk.png"
 
 _cache_hojas = {}
 
@@ -75,8 +77,8 @@ def cargar_familia(personajes, ancho, alto):
     debe sacar el módulo de len() en vez de asumir un número fijo."""
     familia = {}
     for p in personajes:
-        propia_idle = f"assets/{p['id']}_Idle.png"
-        propia_walk = f"assets/{p['id']}_Walk.png"
+        propia_idle = f"assets/imagenes/{p['id']}_Idle.png"
+        propia_walk = f"assets/imagenes/{p['id']}_Walk.png"
         tiene_arte  = os.path.exists(propia_idle) and os.path.exists(propia_walk)
         if not tiene_arte:
             propia_idle, propia_walk = HOJA_IDLE, HOJA_WALK
@@ -131,3 +133,47 @@ def marco(path, borde=(30, 30, 26, 26)):
                                      texture=tex)
     _cache_marcos[clave] = resultado
     return resultado
+
+
+# ── Orientación de los personajes ─────────────────────────────────────────
+# El arte de la familia está dibujado de perfil MIRANDO HACIA LA DERECHA: la
+# mochila queda del lado izquierdo del cuerpo y la cara del derecho. Para que
+# un personaje mire a la izquierda alcanza con espejar la textura; no hacen
+# falta hojas nuevas.
+#
+# Arriba y abajo no tienen arte propio, así que al caminar en vertical se
+# conserva hacia dónde miraba: es lo que hacen los juegos de grilla que
+# tienen solo vista lateral, y se lee mejor que hacerlo girar al azar.
+
+_cache_espejo = {}
+
+
+def espejar(textura):
+    """Devuelve la textura espejada horizontalmente, cacheada.
+
+    El caché es imprescindible: flip_left_right() construye una textura
+    nueva cada vez, y esto se llama una vez por personaje por cuadro. La
+    clave es cache_name -el hash del contenido que arma Arcade- y no id(),
+    que se puede repetir si una textura se libera."""
+    clave = textura.cache_name
+    if clave not in _cache_espejo:
+        _cache_espejo[clave] = textura.flip_left_right()
+    return _cache_espejo[clave]
+
+
+def orientar(textura, mirando_derecha):
+    """La textura tal como hay que dibujarla según hacia dónde mira.
+
+    Se espeja para mirar a la IZQUIERDA, porque el arte ya viene mirando a
+    la derecha."""
+    return textura if mirando_derecha else espejar(textura)
+
+
+def mirada_segun(dc, mirada_actual):
+    """Hacia dónde queda mirando quien se movió en la dirección dc.
+
+    Un movimiento vertical (dc == 0) no cambia nada: se devuelve la mirada
+    que ya tenía."""
+    if dc == 0:
+        return mirada_actual
+    return dc > 0

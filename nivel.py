@@ -17,6 +17,8 @@ import random
 import mapa as mapa_mod
 from constantes import *
 
+# ── Punto de entrada: de dónde sale cada nivel ──────────────────────────────
+
 def generar_nivel(numero_nivel, dificultad, usar_tiled=True):
     """Punto de entrada principal. Decide si generar el nivel de forma
     procedural o cargarlo desde un mapa de Tiled.
@@ -30,6 +32,7 @@ def generar_nivel(numero_nivel, dificultad, usar_tiled=True):
 
 def _cargar_desde_tmx(numero_nivel, dificultad):
     """Carga el mapa desde un archivo .tmx de Tiled.
+
     Si el archivo no existe o falla, usa generación automática."""
     ruta = f"mapas/nivel_{dificultad}_{numero_nivel}.tmx"
     print(f"Cargando: {ruta}")
@@ -70,6 +73,7 @@ def _cargar_desde_tmx(numero_nivel, dificultad):
 
 def _generar_automatico(numero_nivel, dificultad):
     """Genera un mapa aleatorio garantizando que siempre haya camino al portal.
+
     El nivel 1 no es aleatorio: tiene 4 paredes fijas, sin hielo ni
     teleportes, para que la primera partida sea una entrada suave.
     A partir del nivel 3 aparece hielo y desde el 5 teleportes."""
@@ -145,8 +149,11 @@ def _generar_automatico(numero_nivel, dificultad):
         "celdas_fondo":    {},
     }
 
+# ── Generación procedural del escenario ─────────────────────────────────────
+
 def _calcular_paredes(numero_nivel, dificultad):
     """Calcula la cantidad de paredes según el nivel y la dificultad.
+
     Más nivel y más dificultad = más paredes, con un tope del 30% de la grilla."""
     base = 4 + numero_nivel * 2
     if dificultad == "medio":
@@ -165,6 +172,8 @@ def _generar_paredes(cantidad, inicio, portal):
         if (col, fila) != inicio and (col, fila) != portal
     ]
     return set(random.sample(celdas_libres, cantidad))
+
+# ── Búsqueda de caminos (BFS) ───────────────────────────────────────────────
 
 def _celdas_vecinas_libres(celda, paredes, ancho=COLUMNAS, alto=FILAS):
     """Las celdas transitables pegadas a la dada (arriba, abajo, izquierda,
@@ -202,6 +211,8 @@ def _camino_mas_corto(inicio, destino, paredes, ancho=COLUMNAS, alto=FILAS):
             cola.append(vecina)
     return None
 
+
+# ── Ubicación de la llave ───────────────────────────────────────────────────
 
 def _llave_es_alcanzable_y_con_salida(candidata, paredes):
     """Comprueba que la llave se pueda buscar Y que después se pueda seguir

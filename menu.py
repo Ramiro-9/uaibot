@@ -32,9 +32,10 @@ import arcade
 
 import guardado
 import sprites as spr
+import ui
 from constantes import *
 
-OPCIONES = ["Viaje", "Infinito", "Multijugador", "Tutorial", "Inventario / Bestiario", "Ajustes"]
+OPCIONES = ["Viaje", "Infinito", "Multijugador", "Tutorial", "Inventario", "Ajustes"]
 
 # Filas del submenu de Ajustes: la primera es el selector de controles que
 # antes era su propia entrada del menú; las otras dos, el volumen de la
@@ -54,6 +55,7 @@ class Menu(arcade.View):
     musica_player = None
 
     def __init__(self):
+        """Arma el menú principal: assets, textos y estado de navegación."""
         super().__init__()
         self.datos               = guardado.cargar()
         self.opcion_seleccionada = 0
@@ -65,14 +67,14 @@ class Menu(arcade.View):
     # ── Assets ────────────────────────────────────────────────────────────────
     def _cargar_assets(self):
         """Carga el fondo ilustrado del menú y los ribbons de botones."""
-        self.img_fondo = arcade.load_texture("assets/fondo_menu.png")
+        self.img_fondo = arcade.load_texture("assets/imagenes/fondo_menu.png")
 
         # Los ribbons vienen apilados verticalmente, uno por opción del menú.
         # El alto de cada uno sale de la altura REAL del archivo dividida por
         # la cantidad de ribbons: antes estaba escrito a mano como 1563, que
         # no es la altura del PNG (1536), y eso corría todos los cortes 27px
         # y hacía que el primer ribbon leyera fuera de la imagen.
-        sheet        = arcade.load_spritesheet("assets/botones.png")
+        sheet        = arcade.load_spritesheet("assets/imagenes/botones.png")
         alto_hoja    = sheet.image.height
         cantidad     = len(OPCIONES)
         alto_ribbon  = alto_hoja // cantidad
@@ -85,7 +87,7 @@ class Menu(arcade.View):
             for i in range(cantidad)
         ]
 
-        self.musica = arcade.load_sound("assets/MenuMusic.wav")
+        self.musica = arcade.load_sound("assets/audio/MenuMusic.wav")
 
     # ── Textos ────────────────────────────────────────────────────────────────
     def _crear_textos(self):
@@ -106,9 +108,11 @@ class Menu(arcade.View):
         self.espaciado_opciones = 46
         self.y_primera_opcion   = ALTO_VENTANA - 210
 
+        DESPLAZAMIENTO_TEXTO_Y = 10
+
         self.txt_opciones  = [
-            arcade.Text(op, cx, self.y_primera_opcion - i * self.espaciado_opciones,
-                        arcade.color.WHITE, 17, anchor_x="center")
+            arcade.Text(op, cx, self.y_primera_opcion - i * self.espaciado_opciones - DESPLAZAMIENTO_TEXTO_Y,
+                        arcade.color.BLACK, 20, anchor_x="center")
             for i, op in enumerate(OPCIONES)
         ]
         self.txt_instruccion = arcade.Text("↑↓ para navegar   ENTER para seleccionar",
@@ -146,12 +150,14 @@ class Menu(arcade.View):
             cls.musica_player = None
 
     def on_key_press(self, symbol, modifiers):
+        """Reparte las teclas entre el menú y el submenú de Ajustes."""
         if self.submenu == "ajustes":
             self._manejar_ajustes(symbol)
         else:
             self._manejar_menu(symbol)
 
     def _manejar_menu(self, symbol):
+        """Mueve la selección del menú y entra en la opción elegida."""
         if symbol == arcade.key.UP:
             self.opcion_seleccionada = (self.opcion_seleccionada - 1) % len(OPCIONES)
         elif symbol == arcade.key.DOWN:
@@ -172,7 +178,7 @@ class Menu(arcade.View):
             self._iniciar_multijugador()
         elif opcion == "Ajustes":
             self.submenu = "ajustes"
-        elif opcion == "Inventario / Bestiario":
+        elif opcion == "Inventario":
             self._iniciar_inventario()
         elif opcion in MODOS_PENDIENTES:
             self.window.show_view(Placeholder(opcion))
@@ -257,6 +263,7 @@ class Menu(arcade.View):
 
     def _iniciar_infinito(self):
         """Arranca Juego (juego.py) sin selección manual de dificultad:
+
         escala sola cada 10 niveles y no tiene techo de nivel."""
         self.detener_musica()
         from juego import Juego
@@ -283,13 +290,14 @@ class Menu(arcade.View):
         ))
 
     def _iniciar_inventario(self):
-        """Abre el Inventario/Bestiario: la familia con sus habilidades y
+        """Abre el Inventario: la familia con sus habilidades y
         los objetos coleccionables del Multijugador con su descripción.
         La música del menú sigue sonando (como en el Placeholder)."""
         self.window.show_view(Inventario())
 
     # ── Dibujo ────────────────────────────────────────────────────────────────
     def on_draw(self):
+        """Dibuja el fondo ilustrado, los botones y el submenú si está abierto."""
         self.window.clear((20, 28, 36))
 
         # Fondo ilustrado con overlay oscuro para legibilidad del texto
@@ -319,44 +327,40 @@ class Menu(arcade.View):
 
     def _dibujar_submenu_ajustes(self):
         """Dibuja el cuadro de Ajustes: una fila por ajuste con su valor,
-        la activa resaltada en dorado. Reusa el marco nine-patch del
-        submenu de siempre, con más alto porque entran tres filas."""
+        la activa resaltada. Usa el mismo cuadro que el resto de las
+        pantallas de menú (ver ui.dialogo)."""
         cx = ANCHO_VENTANA // 2
         cy = ALTO_VENTANA // 2
-        ancho, alto = 440, 220
-
-        marco = spr.marco(PANEL_MARCO)
-        if marco is not None:
-            marco.draw_rect(rect=arcade.XYWH(cx, cy, ancho, alto))
-        else:
-            arcade.draw_lrbt_rectangle_filled(cx - 220, cx + 220, cy - 110, cy + 110, (30, 39, 46))
-            arcade.draw_lrbt_rectangle_outline(cx - 220, cx + 220, cy - 110, cy + 110, (52, 152, 219), 2)
-
-        arcade.Text("Ajustes", cx, cy + 78, arcade.color.GOLD, 18,
-                    anchor_x="center", bold=True).draw()
+        ancho, alto = 460, 240
+        izq, der, aba, arr = ui.dialogo(cx, cy, ancho, alto, "Ajustes")
 
         # El valor de cada fila al lado de su etiqueta: el control actual y
-        # los volúmenes como porcentaje. La fila activa se lee en dorado con
-        # los adjudicadores de siempre para indicar que ← → la cambia.
+        # los volúmenes como porcentaje. La fila activa lleva además una
+        # banda de fondo, porque solo el color dorado no alcanzaba para
+        # ubicarla de un vistazo.
         valores = [
             self.datos.get("controles", "flechas"),
             f"{int(self.datos.get('volumen_musica_menu', 0.3) * 100)}%",
             f"{int(self.datos.get('volumen_musica_nivel', 0.3) * 100)}%",
         ]
         for i, fila in enumerate(FILAS_AJUSTES):
-            y      = cy + 34 - i * 38
+            y      = arr - 76 - i * 38
             activa = (i == self.ajuste_seleccionado)
             color  = arcade.color.GOLD if activa else (170, 170, 170)
-            arcade.Text(fila, cx - 190, y, color, 14).draw()
-            arcade.Text(f"< {valores[i]} >", cx + 120, y, color, 14,
-                        anchor_x="center").draw()
+            if activa:
+                arcade.draw_lrbt_rectangle_filled(izq + 26, der - 26, y - 16, y + 16,
+                                                  (52, 152, 219, 45))
+            arcade.Text(fila, izq + 40, y, color, 14, anchor_y="center").draw()
+            arcade.Text(f"< {valores[i]} >", der - 90, y, color, 14,
+                        anchor_x="center", anchor_y="center").draw()
 
         arcade.Text("↑↓ para elegir   ← → para cambiar   ESC para volver",
-                    cx, cy - 80, (120, 120, 120), 11, anchor_x="center").draw()
+                    cx, aba + 26, (120, 120, 120), 11,
+                    anchor_x="center", anchor_y="center").draw()
 
 
 class Inventario(arcade.View):
-    """Inventario / Bestiario (Fase 5 del plan): dos secciones.
+    """Inventario(Fase 5 del plan): dos secciones.
 
     - PERSONAJES: la familia completa con su habilidad. Los aún no
       desbloqueados en Modo Viaje se ven oscurecidos y sin datos — es el
@@ -370,6 +374,7 @@ class Inventario(arcade.View):
     el Placeholder."""
 
     def __init__(self):
+        """Carga los retratos de la familia y las imágenes de los objetos."""
         super().__init__()
         self.seccion       = 0    # 0 = personajes, 1 = objetos
         self.sel_personaje = 0
@@ -387,6 +392,7 @@ class Inventario(arcade.View):
 
     # ── Eventos ───────────────────────────────────────────────────────────
     def on_key_press(self, symbol, modifiers):
+        """Cambia de sección con arriba/abajo y de ítem con izquierda/derecha."""
         if symbol == arcade.key.ESCAPE:
             self.window.show_view(Menu())
         elif symbol == arcade.key.UP:
@@ -408,103 +414,124 @@ class Inventario(arcade.View):
 
     # ── Dibujo ────────────────────────────────────────────────────────────
     def on_draw(self):
-        self.window.clear((20, 28, 36))
-        cx = ANCHO_VENTANA // 2
-
-        arcade.Text("INVENTARIO / BESTIARIO", cx, ALTO_VENTANA - 50,
-                    arcade.color.GOLD, 26, anchor_x="center", bold=True).draw()
-
-        # Solapas de sección: la activa en dorado, la otra en gris.
-        for i, nombre in enumerate(("PERSONAJES", "OBJETOS")):
-            color = arcade.color.GOLD if i == self.seccion else (120, 120, 120)
-            arcade.Text(nombre, cx + (i - 0.5) * 220, ALTO_VENTANA - 92,
-                        color, 14, anchor_x="center", bold=True).draw()
+        """Dibuja la sección activa dentro del cuadro del Bestiario."""
+        self.window.clear(ui.FONDO)
+        ui.encabezado("INVENTARIO")
+        ui.solapas(("PERSONAJES", "OBJETOS"), self.seccion, ALTO_VENTANA - 96,
+                   separacion=220)
 
         if self.seccion == 0:
             self._dibujar_personajes()
         else:
             self._dibujar_objetos()
 
-        arcade.Text("←→ moverse   ↑↓ cambiar sección   ESC para volver",
-                    cx, 24, (120, 120, 120), 11, anchor_x="center").draw()
+        ui.ayuda("←→ moverse   ↑↓ cambiar seccion   ESC para volver")
+
+    # Medidas del cuadro de contenido, compartidas por las dos secciones para
+    # que al cambiar de solapa no salte el marco.
+    CUADRO_ANCHO = 860
+    CUADRO_ALTO  = 380
+
+    def _cuadro(self):
+        """Dibuja el cuadro y devuelve lo que necesitan las dos secciones
+        para ubicar su contenido: el centro horizontal y tres bordes."""
+        cx = ANCHO_VENTANA // 2
+        cy = ALTO_VENTANA // 2 - 26
+        izq, der, _, arr = ui.dialogo(cx, cy, self.CUADRO_ANCHO, self.CUADRO_ALTO)
+        return cx, izq, der, arr
 
     def _dibujar_personajes(self):
         """La familia en fila: retrato (Idle frame 0), nombre en su color y,
-        abajo, la habilidad del seleccionado. Bloqueado = oscurecido."""
-        cx, cy = ANCHO_VENTANA // 2, ALTO_VENTANA // 2
+        abajo, la ficha del seleccionado. Bloqueado = oscurecido."""
+        cx, izq, der, arr = self._cuadro()
         desbloqueados = self.datos["personajes_desbloqueados"]
 
+        # El nombre va bien abajo del retrato: el robot llega hasta el borde
+        # inferior de su recuadro, así que con menos separación el texto le
+        # queda encima de los pies.
+        y_retrato = arr - 108
         for i, personaje in enumerate(PERSONAJES_FAMILIA):
-            x       = cx + (i - 1.5) * 190
+            x       = cx + (i - 1.5) * 180
             activo  = (i == self.sel_personaje)
             abierto = personaje["id"] in desbloqueados
 
             if activo:
                 arcade.draw_lrbt_rectangle_outline(
-                    x - 75, x + 75, cy - 40, cy + 110, arcade.color.GOLD, 2)
+                    x - 80, x + 80, y_retrato - 104, y_retrato + 78,
+                    arcade.color.GOLD, 2)
 
             frame = self.familia[personaje["id"]]["idle"][0]
             # Sin desbloquear se dibuja casi negro: se ve la silueta, no el
             # detalle — el incentivo a jugar la campaña es conocerlos.
             tinte = (60, 60, 60) if not abierto else personaje["color"]
-            arcade.draw_texture_rect(frame, arcade.XYWH(x, cy + 35, 110, 110),
+            arcade.draw_texture_rect(frame, arcade.XYWH(x, y_retrato, 150, 150),
                                      color=arcade.types.Color(*tinte))
             nombre = personaje["nombre"] if abierto else "??????"
-            arcade.Text(nombre, x, cy - 25, personaje["color"] if abierto else (110, 110, 110),
-                        13, anchor_x="center", bold=True).draw()
+            ui.etiqueta(f"bes_nombre{i}", nombre, x, y_retrato - 90,
+                     personaje["color"] if abierto else (110, 110, 110),
+                     13, anchor_x="center", anchor_y="center", bold=True).draw()
 
-        # Ficha del personaje seleccionado
+        # Línea que separa la fila de la ficha del seleccionado.
+        y_regla = y_retrato - 116
+        arcade.draw_line(izq + 40, y_regla, der - 40, y_regla, (58, 72, 82), 1)
+
         personaje = PERSONAJES_FAMILIA[self.sel_personaje]
-        y = cy - 120
+        y = y_regla - 26
         if personaje["id"] in desbloqueados:
-            arcade.Text(
-                f"{personaje['nombre']} — {personaje['habilidad_nombre']}",
-                cx, y, arcade.color.WHITE, 15, anchor_x="center", bold=True).draw()
+            ui.etiqueta("bes_ficha", f"{personaje['nombre']} — {personaje['habilidad_nombre']}",
+                     cx, y, arcade.color.WHITE, 15,
+                     anchor_x="center", anchor_y="center", bold=True).draw()
             extra = (f"{personaje['habilidad_desc']}. "
                      "Disponible desde el inicio en Tutorial y Multijugador; "
                      "en Modo Viaje se suma al equipo al avanzar la campaña.")
-            arcade.Text(extra, cx, y - 30, (200, 200, 200), 12,
-                        anchor_x="center", multiline=True, width=760).draw()
+            ui.parrafo(extra, cx, y - 28, self.CUADRO_ANCHO - 140, 12,
+                       (200, 200, 200))
         else:
-            arcade.Text("Aún no se sumó al equipo.", cx, y,
-                        (200, 120, 120), 14, anchor_x="center", bold=True).draw()
-            arcade.Text("Se desbloquea avanzando el Modo Viaje.",
-                        cx, y - 28, (200, 200, 200), 12, anchor_x="center").draw()
+            ui.etiqueta("bes_ficha", "Aún no se sumó al equipo.", cx, y,
+                     (200, 120, 120), 14,
+                     anchor_x="center", anchor_y="center", bold=True).draw()
+            ui.etiqueta("bes_bloqueado", "Se desbloquea avanzando el Modo Viaje.",
+                     cx, y - 26, (200, 200, 200), 12,
+                     anchor_x="center", anchor_y="center").draw()
 
     def _dibujar_objetos(self):
         """Los 10 coleccionables en grilla de 5×2 con su ficha debajo.
+
         Sin conseguir = desvanecido; la selección se marca en dorado."""
-        cx, cy = ANCHO_VENTANA // 2, ALTO_VENTANA // 2
+        cx, izq, der, arr = self._cuadro()
         conseguidos = self.datos["objetos_multijugador"]
 
+        y_grilla = arr - 68
         for i, objeto in enumerate(OBJETOS_MULTIJUGADOR):
             col, fila = i % 5, i // 5
-            x = cx + (col - 2) * 125
-            y = cy + 95 - fila * 120
-            activo = (i == self.sel_objeto)
-
-            if activo:
+            x = cx + (col - 2) * 130
+            y = y_grilla - fila * 96
+            if i == self.sel_objeto:
                 arcade.draw_lrbt_rectangle_outline(
-                    x - 52, x + 52, y - 52, y + 52, arcade.color.GOLD, 2)
+                    x - 46, x + 46, y - 44, y + 44, arcade.color.GOLD, 2)
 
             # Sin conseguir se ve la silueta desvanecida: alcanza para
             # reconocerlo, pero invita a ir a buscarlo.
             alpha = 255 if objeto["id"] in conseguidos else 90
             arcade.draw_texture_rect(
-                self.img_objetos[i], arcade.XYWH(x, y, 76, 76),
+                self.img_objetos[i], arcade.XYWH(x, y, 72, 72),
                 color=arcade.types.Color(255, 255, 255, alpha))
 
-        # Ficha del objeto seleccionado
+        y_regla = y_grilla - 96 - 60
+        arcade.draw_line(izq + 40, y_regla, der - 40, y_regla, (58, 72, 82), 1)
+
         objeto = OBJETOS_MULTIJUGADOR[self.sel_objeto]
-        estado = "Conseguido" if objeto["id"] in conseguidos \
+        tiene  = objeto["id"] in conseguidos
+        y = y_regla - 24
+        ui.etiqueta("bes_ficha", objeto["nombre"], cx, y, arcade.color.WHITE, 15,
+                 anchor_x="center", anchor_y="center", bold=True).draw()
+        alto = ui.parrafo(objeto["descripcion"], cx, y - 26,
+                          self.CUADRO_ANCHO - 140, 12, (200, 200, 200))
+        estado = "Conseguido" if tiene \
                  else "Aún no conseguido — se encuentra en el Modo Multijugador"
-        color_estado = (100, 200, 100) if objeto["id"] in conseguidos else (200, 120, 120)
-        arcade.Text(objeto["nombre"], cx, cy - 105, arcade.color.WHITE, 15,
-                    anchor_x="center", bold=True).draw()
-        arcade.Text(objeto["descripcion"], cx, cy - 140, (200, 200, 200), 12,
-                    anchor_x="center", multiline=True, width=700).draw()
-        arcade.Text(estado, cx, cy - 205, color_estado, 12,
-                    anchor_x="center", bold=True).draw()
+        ui.etiqueta("bes_estado", estado, cx, y - 34 - alto,
+                 (100, 200, 100) if tiene else (200, 120, 120), 12,
+                 anchor_x="center", anchor_y="center", bold=True).draw()
 
 
 class Placeholder(arcade.View):
@@ -514,10 +541,12 @@ class Placeholder(arcade.View):
     entrada futura del menú que todavía no exista."""
 
     def __init__(self, titulo):
+        """Guarda el título que va a mostrar la pantalla."""
         super().__init__()
         self.titulo = titulo
 
     def on_draw(self):
+        """Dibuja el cartel de 'próximamente' centrado en la pantalla."""
         self.window.clear((20, 28, 36))
         cx, cy = ANCHO_VENTANA // 2, ALTO_VENTANA // 2
         arcade.Text(self.titulo, cx, cy + 30, arcade.color.GOLD, 32,
@@ -528,5 +557,6 @@ class Placeholder(arcade.View):
                     anchor_x="center", anchor_y="center").draw()
 
     def on_key_press(self, symbol, modifiers):
+        """ESC vuelve al menú principal."""
         if symbol == arcade.key.ESCAPE:
             self.window.show_view(Menu())

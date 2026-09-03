@@ -95,36 +95,71 @@ vacío) y hielo (`tipo: hielo`), vía propiedades del tile.
 
 ## Estructura de archivos
 
+La raíz tiene solo los módulos del juego. Lo que no forma parte del juego
+en sí —las pruebas y los scripts que generan arte— vive en su propia
+carpeta, para que se vea de un vistazo qué hay que leer para entender el
+juego y qué es herramienta de trabajo.
+
 ```
 UAIBOT/
-├── main.py            # arranca la ventana y muestra el menú
-├── menu.py             # menú principal (teclado + mouse), submenús
-├── juego.py             # vista principal del juego: setup, input,
-│                        # update, dibujo. Contiene la clase Particula
-│                        # para el efecto de victoria
-├── nivel.py             # generación procedural de niveles + carga
-│                        # desde .tmx + utilidades BFS (camino /
-│                        # pasos mínimos)
-├── mapa.py              # parser de archivos .tmx (Tiled) hacia las
-│                        # estructuras que usa nivel.py
-├── sprites.py            # carga de texturas con caché y fallback
-├── guardado.py            # persistencia en guardado.json
-├── constantes.py          # configuración de grilla, rutas de
-│                          # sprites, posiciones fijas
-├── guardado.json           # datos guardados (no versionar cambios
-│                           # de este archivo si son de una partida
-│                           # personal de prueba)
-├── requirements.txt
-├── assets/               # sprites, sonidos, spritesheets (ver tabla
-│                         # más abajo)
-└── mapas/                 # archivos .tmx para dificultad medio/difícil
+├── main.py           # arranca la ventana y muestra el menú
+│
+│   ── Vistas: una por pantalla del juego ──
+├── menu.py           # menú principal, Ajustes e Inventario/Bestiario
+├── tutorial.py       # Modo Tutorial: las 13 consignas del desafío
+├── juego.py          # Modo Infinito y base de la que heredan los demás:
+│                     #   movimiento, cámara, dibujo del mapa y del panel
+├── viaje.py          # Modo Viaje: la campaña de 10 niveles fijos
+├── multijugador.py   # Modo Multijugador: sala + partida cooperativa
+│
+│   ── Lógica compartida ──
+├── habilidades.py    # las cuatro habilidades, como mixin
+├── nivel.py          # generación procedural + carga de .tmx + BFS
+├── mapa.py           # parser de archivos .tmx (Tiled)
+├── red.py            # sockets del Multijugador (no sabe nada del juego)
+├── guardado.py       # persistencia en guardado.json
+├── constantes.py     # grilla, rutas de sprites, personajes, objetos
+│
+│   ── Interfaz ──
+├── panel.py          # armado del panel lateral por secciones
+├── sprites.py        # carga de texturas con caché, espejado y fallback
+├── ui.py             # cuadros, encabezados y ajuste de línea del menú
+│
+│   ── Recursos ──
+├── assets/           # recursos (ver tabla abajo)
+│   ├── imagenes/     #   sprites, spritesheets, íconos y fondos
+│   ├── audio/        #   música y efectos de sonido
+│   └── tileset_*.png #   quedan sueltos: los .tsx de Tiled los buscan acá
+├── mapas/            # archivos .tmx para dificultad medio/difícil
+├── docs/             # bases del certamen, plan de trabajo, prompts
+│
+│   ── Fuera del juego ──
+├── pruebas/          # pruebas automáticas (no hacen falta para jugar)
+│   ├── pruebas_red.py            # la capa de red sola, sobre 127.0.0.1
+│   └── pruebas_multijugador.py   # los dos lados conectados de verdad
+├── generacion/       # scripts que generaron el arte con IA; guardan los
+│   ├── generar_donaciones.py     #   prompts usados (ver docs/prompt.txt)
+│   └── generar_objetos.py
+│
+├── guardado.json     # partida guardada; no se versiona
+└── requirements.txt
+```
+
+### Correr las pruebas
+
+No hacen falta para jugar, pero verifican el Modo Multijugador sin
+necesidad de dos computadoras:
+
+```bash
+uv run python pruebas/pruebas_red.py
+uv run python pruebas/pruebas_multijugador.py
 ```
 
 ---
 
 ## Para el diseñador de sprites
 
-Todos los archivos van en la carpeta `assets/` en formato PNG con
+Todos los archivos van en la carpeta `assets/imagenes/` en formato PNG con
 fondo transparente.
 
 ### Tamaño

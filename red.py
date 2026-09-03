@@ -43,6 +43,7 @@ class _Conexion:
     lados hablan exactamente igual."""
 
     def __init__(self, sock, al_desconectar=None):
+        """Envuelve un socket ya conectado y arranca su hilo lector."""
         self.sock     = sock
         self.recibidos = queue.Queue()
         self.conectado = True
@@ -88,6 +89,11 @@ class _Conexion:
             self._marcar_desconectado()
 
     def _marcar_desconectado(self):
+        """Marca la conexión como caída y avisa una sola vez.
+
+        El guard de arriba importa porque a este método se llega por dos
+        caminos que pueden darse casi juntos: el hilo lector al detectar
+        que el otro lado cerró, y enviar() al fallar el sendall."""
         if not self.conectado:
             return
         self.conectado = False
@@ -111,6 +117,7 @@ class _Conexion:
 
     def leer_mensajes(self):
         """Devuelve todos los mensajes recibidos desde la última llamada.
+
         Pensado para llamarse desde on_update(): no bloquea nunca."""
         mensajes = []
         while True:
@@ -121,6 +128,7 @@ class _Conexion:
         return mensajes
 
     def cerrar(self):
+        """Cierra el socket en los dos sentidos y libera el recurso."""
         self._marcar_desconectado()
         try:
             self.sock.shutdown(socket.SHUT_RDWR)
@@ -138,6 +146,7 @@ class Servidor:
     es el que vale."""
 
     def __init__(self, puerto=PUERTO_JUEGO):
+        """Abre el puerto y queda esperando al otro jugador en un hilo aparte."""
         self.puerto    = puerto
         self.conexion  = None    # se llena cuando el cliente se conecta
         self.error     = None    # texto del error, si no se pudo abrir
@@ -146,9 +155,23 @@ class Servidor:
 
         try:
             self._sock_escucha = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            # Permite reabrir el mismo puerto enseguida después de cerrar,
-            # sin esperar el tiempo que el sistema lo deja reservado.
-            self._sock_escucha.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            # Reservar el puerto en exclusiva, para que crear una segunda
+            # partida en la misma computadora falle con un aviso claro en
+            # vez de quedar las dos escuchando el mismo puerto.
+            #
+            # La opción cambia según el sistema porque SO_REUSEADDR NO
+            # significa lo mismo en los dos: en Linux y Mac solo permite
+            # reabrir un puerto que quedó reservado un rato después de
+            # cerrarlo, pero en Windows permite además robarle el puerto a
+            # un socket que lo está usando ahora mismo. Con SO_REUSEADDR en
+            # Windows, la segunda partida abría sin error y las conexiones
+            # entrantes caían en cualquiera de las dos.
+            if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):        # Windows
+                self._sock_escucha.setsockopt(socket.SOL_SOCKET,
+                                              socket.SO_EXCLUSIVEADDRUSE, 1)
+            else:                                              # Linux, Mac
+                self._sock_escucha.setsockopt(socket.SOL_SOCKET,
+                                              socket.SO_REUSEADDR, 1)
             self._sock_escucha.bind(("", self.puerto))
             self._sock_escucha.listen(1)
         except OSError as e:
@@ -170,15 +193,19 @@ class Servidor:
 
     @property
     def hay_jugador(self):
+        """Si el invitado ya se conectó y la conexión sigue viva."""
         return self.conexion is not None and self.conexion.conectado
 
     def enviar(self, mensaje):
+        """Manda un mensaje al invitado. False si todavía no hay nadie."""
         return self.conexion.enviar(mensaje) if self.conexion else False
 
     def leer_mensajes(self):
+        """Lo que llegó del invitado desde la última llamada."""
         return self.conexion.leer_mensajes() if self.conexion else []
 
     def cerrar(self):
+        """Cierra la partida: primero la conexión, después el puerto."""
         self._cerrando = True
         if self.conexion:
             self.conexion.cerrar()
@@ -195,6 +222,7 @@ class Cliente:
     le contesta."""
 
     def __init__(self, ip, puerto=PUERTO_JUEGO):
+        """Se conecta a la partida que abrió el anfitrión en esa IP."""
         self.conexion = None
         self.error    = None
         try:
@@ -209,15 +237,19 @@ class Cliente:
 
     @property
     def conectado(self):
+        """Si la conexión con el anfitrión sigue viva."""
         return self.conexion is not None and self.conexion.conectado
 
     def enviar(self, mensaje):
+        """Manda un mensaje al anfitrión. False si la conexión se cayó."""
         return self.conexion.enviar(mensaje) if self.conexion else False
 
     def leer_mensajes(self):
+        """Lo que llegó del anfitrión desde la última llamada."""
         return self.conexion.leer_mensajes() if self.conexion else []
 
     def cerrar(self):
+        """Corta la conexión con el anfitrión."""
         if self.conexion:
             self.conexion.cerrar()
 

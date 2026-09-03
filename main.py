@@ -7,6 +7,7 @@ from constantes import *
 from menu import Menu
 
 def main():
+    """Abre la ventana del juego y muestra el menú principal."""
     # Crear la ventana con el tamaño definido en constantes
     ventana = arcade.Window(ANCHO_VENTANA, ALTO_VENTANA, TITULO)
 

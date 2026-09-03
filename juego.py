@@ -36,6 +36,7 @@ import arcade
 import random
 import guardado
 import nivel as nivel_mod
+import panel as pnl
 import sprites as spr
 from constantes import *
 
@@ -74,6 +75,7 @@ class Particula:
     """Representa un cuadrado de confeti para la animación de victoria."""
 
     def __init__(self):
+        """Arranca una partícula en una posición y con una velocidad al azar."""
         self.x = random.randint(0, ANCHO_JUEGO)
         self.y = ALTO_VENTANA
         self.vy = random.uniform(-3, -1)   # velocidad vertical (cae hacia abajo)
@@ -86,10 +88,12 @@ class Particula:
         self.tam = random.randint(4, 10)
 
     def actualizar(self):
+        """Avanza un cuadro: cae, se frena por el aire y gira."""
         self.x += self.vx
         self.y += self.vy
 
     def dibujar(self):
+        """Dibuja la partícula como un cuadrado del tamaño y color que le tocó."""
         arcade.draw_lrbt_rectangle_filled(
             self.x, self.x + self.tam,
             self.y, self.y + self.tam,
@@ -116,6 +120,10 @@ class Juego(arcade.View):
     """
 
     def __init__(self, controles="flechas"):
+        """Crea la vista. El nivel se arma después, en setup().
+
+        Se separan a propósito: setup() vuelve a correr en cada nivel
+        nuevo, mientras que esto corre una sola vez por partida."""
         super().__init__()
         self.controles  = controles
         # Los assets se cargan una sola vez en __init__ para evitar
@@ -125,6 +133,7 @@ class Juego(arcade.View):
     # ── Setup / Reinicio ──────────────────────────────────────────────────────
     def setup(self, numero_nivel=1, puntaje_total=0):
         """Inicializa o reinicia el estado del juego para el nivel indicado.
+
         Se llama al iniciar partida, al reiniciar (R) y al pasar de nivel."""
 
         # Detener música anterior antes de reproducir la del nuevo nivel
@@ -139,6 +148,10 @@ class Juego(arcade.View):
         self.puntaje_total = puntaje_total
         self.pasos         = 0
         self.ganado        = False
+        # Hacia dónde mira el personaje. El arte está dibujado de perfil
+        # hacia la derecha, y además el portal suele quedar hacia ese lado,
+        # así que es con lo que conviene arrancar.
+        self.mirando_derecha = True
         self.perdido       = False
         self.particulas    = []
         self.timer_estado  = 0
@@ -208,6 +221,11 @@ class Juego(arcade.View):
             self.mapa_ancho, self.mapa_alto
         )
         self._crear_textos()
+        # Va acá y no al final de _crear_textos porque las subclases suman
+        # sus textos DESPUÉS de llamar a super()._crear_textos(): si el
+        # reparto corriera ahí adentro, las secciones nuevas quedarían sin
+        # posición.
+        self._acomodar_panel()
 
         # Posición en píxeles para el movimiento suave
         self.px_x, self.px_y    = self._celda_a_px(*POS_INICIO)
@@ -221,6 +239,7 @@ class Juego(arcade.View):
 
     def _dificultad_del_nivel(self, numero_nivel):
         """Qué dificultad le toca a este número de nivel.
+
         Infinito la escala sola; Viaje usa siempre la misma."""
         return _dificultad_para_nivel(numero_nivel)
 
@@ -235,6 +254,7 @@ class Juego(arcade.View):
 
     def _hay_que_perder_por_pasos(self):
         """Si el nivel se pierde por haber gastado demasiados pasos.
+
         En Infinito hay límite desde la dificultad media (el doble del
         recorrido mínimo); Viaje no tiene límite."""
         if self.dificultad in ("medio", "dificil") and self.pasos_minimos:
@@ -243,15 +263,24 @@ class Juego(arcade.View):
 
     def _avanzar_de_nivel(self):
         """Qué pasa después de completar un nivel.
+
         Infinito no tiene techo: siempre sigue al siguiente. La partida
         solo termina si el jugador pierde o sale con ESC."""
         self.setup(self.numero_nivel + 1, self.puntaje_total)
 
     def _guardar_progreso(self):
         """Qué se persiste al completar un nivel.
+
         Infinito guarda su highscore doble (puntaje total + nivel más alto
         alcanzado); Viaje guarda el progreso y desbloquea personajes."""
         guardado.actualizar_highscore_infinito(self.puntaje_total, self.numero_nivel)
+
+    def _persiste_highscore(self):
+        """Si el puntaje de este modo entra en el highscore general, el que
+        muestra el menú. Por defecto sí, que es lo que hacen Infinito,
+        Tutorial y Viaje: son partidas de una sola persona y el número
+        significa algo. El Multijugador lo sobrescribe."""
+        return True
 
     def _sendero_bloquea(self, nc, nf):
         """Si la celda destino no se puede pisar por estar ya recorrida.
@@ -263,6 +292,7 @@ class Juego(arcade.View):
 
     def _puede_empujar_cajas(self):
         """Si el personaje actual puede empujar cajas. Por defecto sí:
+
         en Infinito no hay personajes que elegir. En los modos con
         habilidades queda reservado a UAIBOT, cuya habilidad es la Carga."""
         return True
@@ -278,6 +308,7 @@ class Juego(arcade.View):
 
     def _inicializar_estado_puertas(self):
         """Crea el estado de animación inicial para todas las puertas del nivel.
+
         Cada puerta arranca en frame 0 (cerrada) y sin animación activa."""
         self.anim_puertas_llave = {
             pos: {"anim_frame": 0, "animando": False, "timer": 0}
@@ -291,6 +322,7 @@ class Juego(arcade.View):
     # ── Construcción de capas estáticas (SpriteList) ──────────────────────────
     def _crear_sprite_hielo(self, col, fila):
         """Celda de hielo a tamaño nativo y centrada (ver nota en setup).
+
         Si no está el PNG, cae al cuadrado de color de siempre."""
         tex = spr.cargar(SPRITE_HIELO)
         if tex:
@@ -304,6 +336,7 @@ class Juego(arcade.View):
 
     def _crear_sprite_celda(self, path, col, fila, color_fallback, forzar_color=False):
         """Crea un arcade.Sprite para la celda (col, fila).
+
         Si existe el archivo de imagen (y no se fuerza el color), usa la
         textura estirada al tamaño de celda. Si no, usa un cuadrado de
         color sólido levemente más chico (mismo criterio visual que el
@@ -322,6 +355,7 @@ class Juego(arcade.View):
 
     def _construir_capas_estaticas(self):
         """Arma las SpriteList de fondo, paredes y hielo para el nivel actual.
+
         El sendero se deja vacío acá: se va completando celda a celda en
         _intentar_mover a medida que UAIBOT camina (ver _agregar_huella)."""
         # El nivel 1 fuerza colores planos en vez de sprites, tal como en
@@ -373,6 +407,7 @@ class Juego(arcade.View):
 
     def _reconstruir_cajas_sprites(self):
         """Rearma la SpriteList de cajas a partir de self.cajas.
+
         Se llama al iniciar el nivel y cada vez que se empuja una caja
         (ver _intentar_mover), nunca en on_draw ni en on_update."""
         self.caja_sprites = arcade.SpriteList()
@@ -421,6 +456,7 @@ class Juego(arcade.View):
     # ── Carga de assets ───────────────────────────────────────────────────────
     def _cargar_assets(self):
         """Carga todos los sprites, sonidos y música del juego.
+
         Solo se ejecuta una vez en __init__ para no bloquear entre niveles."""
 
         # Animaciones de toda la familia: cada personaje usa su arte propio si
@@ -436,10 +472,10 @@ class Juego(arcade.View):
         self.velocidad_frame = 8   # frames de juego entre cada frame de animación
 
         # Sonidos de acción
-        self.snd_mover    = arcade.load_sound("assets/Moverse.wav")
-        self.snd_no_mover = arcade.load_sound("assets/NoMoverse.wav")
-        self.snd_victoria = arcade.load_sound("assets/CompletedLevel.wav")
-        self.musica       = arcade.load_sound("assets/GameLevelMusic.wav")
+        self.snd_mover    = arcade.load_sound("assets/audio/Moverse.wav")
+        self.snd_no_mover = arcade.load_sound("assets/audio/NoMoverse.wav")
+        self.snd_victoria = arcade.load_sound("assets/audio/CompletedLevel.wav")
+        self.musica       = arcade.load_sound("assets/audio/GameLevelMusic.wav")
 
         # Ítems de donación (Modo Viaje) y objetos coleccionables
         # (Multijugador): estáticos, un PNG por tipo/id. Van en el mismo
@@ -452,9 +488,9 @@ class Juego(arcade.View):
         }
 
         # Spritesheets de elementos animados en loop
-        sheet_llave     = arcade.load_spritesheet("assets/llave_anim.png")
-        sheet_portal    = arcade.load_spritesheet("assets/portal_anim.png")
-        sheet_teleporte = arcade.load_spritesheet("assets/teleporte_anim.png")
+        sheet_llave     = arcade.load_spritesheet("assets/imagenes/llave_anim.png")
+        sheet_portal    = arcade.load_spritesheet("assets/imagenes/portal_anim.png")
+        sheet_teleporte = arcade.load_spritesheet("assets/imagenes/teleporte_anim.png")
 
         self.frames_llave = [
             sheet_llave.get_texture(arcade.LRBT(i * 20, i * 20 + 20, 0, 20))
@@ -479,6 +515,7 @@ class Juego(arcade.View):
 
     def _cargar_assets_puertas(self):
         """Recorta los frames de apertura de puerta_llave y puerta_placa.
+
         Cada spritesheet tiene 5 frames horizontales de distinto ancho."""
         frame_w_llave = ANCHO_TOTAL_PUERTA_LLAVE / CANTIDAD_FRAMES_PUERTA
         frame_w_placa = ANCHO_TOTAL_PUERTA_PLACA / CANTIDAD_FRAMES_PUERTA
@@ -507,6 +544,7 @@ class Juego(arcade.View):
     # ── Textos del panel ──────────────────────────────────────────────────────
     def _crear_textos(self):
         """Crea los objetos Text del panel lateral y los overlays.
+
         Se llama en cada setup() porque algunos valores cambian entre niveles."""
         px = ANCHO_JUEGO
         pw = PANEL_ANCHO
@@ -521,49 +559,49 @@ class Juego(arcade.View):
         self.txt_dificultad = arcade.Text(f"Dificultad: {self.dificultad}", cx, ALTO_VENTANA - 103,
                                            (150, 150, 150), 11, anchor_x="center")
 
-        self.txt_mision_titulo = arcade.Text("MISION", px + 16, ALTO_VENTANA - 128,
-                                              arcade.color.GOLD, 11, bold=True)
-        mision = "Llega al portal\npara avanzar."
-        if self.dificultad == "dificil" and self.pos_llave:
-            mision += "\nRecoge la llave\nprimero con E."
-        self.txt_mision = arcade.Text(mision, px + 16, ALTO_VENTANA - 148,
-                                       (200, 200, 200), 10, multiline=True, width=pw - 32)
+        # ── Textos del panel ─────────────────────────────────────────
+        # Ninguno lleva posición vertical: se la pone panel.acomodar() a
+        # partir del orden de las secciones (ver _secciones_panel).
+        x = px + pnl.MARGEN_X
+        ancho_texto = pw - pnl.MARGEN_X * 2
 
-        self.txt_pasos_titulo = arcade.Text("PASOS", px + 16, ALTO_VENTANA - 265,
-                                             arcade.color.GOLD, 11, bold=True)
-        self.txt_pasos        = arcade.Text("0", px + 16, ALTO_VENTANA - 290,
-                                             (200, 200, 200), 22, bold=True)
-        self.txt_pasos_min    = arcade.Text(f"Minimo sugerido: {self.pasos_minimos}",
-                                             px + 16, ALTO_VENTANA - 318, (100, 180, 100), 10)
+        # Sin saltos de línea a mano: el texto es multilínea y se acomoda
+        # solo al ancho del panel. Cortarlo a mano desperdiciaba media
+        # columna y sumaba líneas de más.
+        mision = "Llega al portal para avanzar."
+        if self.dificultad == "dificil" and self.pos_llave:
+            mision += " Recoge la llave primero con E."
+        self.txt_mision = pnl.crear_texto(mision, x, 10, (200, 200, 200),
+                                          ancho=ancho_texto)
+
+        self.txt_pasos     = pnl.crear_texto("0", x, 22, (200, 200, 200), bold=True)
+        self.txt_pasos_min = pnl.crear_texto(f"Minimo sugerido: {self.pasos_minimos}",
+                                             x, 10, (100, 180, 100))
 
         # El límite de pasos solo aplica en medio y difícil
         if self.dificultad in ("medio", "dificil"):
             limite = self.pasos_minimos * 2 if self.pasos_minimos else "-"
-            self.txt_limite = arcade.Text(f"Limite maximo: {limite}",
-                                           px + 16, ALTO_VENTANA - 334, (220, 100, 100), 10)
+            self.txt_limite = pnl.crear_texto(f"Limite maximo: {limite}",
+                                              x, 10, (220, 100, 100))
         else:
-            self.txt_limite = arcade.Text("", px + 16, ALTO_VENTANA - 334, (0, 0, 0), 10)
+            self.txt_limite = pnl.crear_texto("", x, 10, (220, 100, 100))
 
-        self.txt_puntaje_titulo = arcade.Text("PUNTAJE", px + 16, ALTO_VENTANA - 364,
-                                               arcade.color.GOLD, 11, bold=True)
-        self.txt_puntaje        = arcade.Text(str(self.puntaje_total), px + 16, ALTO_VENTANA - 390,
-                                               (200, 200, 200), 22, bold=True)
+        self.txt_puntaje = pnl.crear_texto(str(self.puntaje_total), x, 22,
+                                           (200, 200, 200), bold=True)
+        # Sin título propio: una sola línea con su ícono alcanza, y una
+        # sección entera para un sí/no gastaba 20px de encabezado.
+        self.txt_llave   = pnl.crear_texto("LLAVE: NO", x, 11, (200, 100, 100), bold=True)
 
-        # Indicador de llave (solo visible en difícil)
-        self.txt_llave = arcade.Text("LLAVE: NO", px + 16, ALTO_VENTANA - 428,
-                                      (200, 100, 100), 11, bold=True)
-
-        self.txt_controles_titulo = arcade.Text("CONTROLES", px + 16, ALTO_VENTANA - 468,
-                                                 arcade.color.GOLD, 11, bold=True)
-        controles_texto = "WASD: mover\nR: reiniciar nivel\nN: reiniciar juego\nESC: menu" \
-                          if self.controles == "wasd" else \
-                          "Flechas: mover\nR: reiniciar nivel\nN: reiniciar juego\nESC: menu"
-        # A -505 (y no más abajo) para que las 4 líneas del bloque no se
-        # superpongan con el recordatorio del pie del panel.
-        self.txt_controles  = arcade.Text(controles_texto, px + 16, ALTO_VENTANA - 505,
-                                           (200, 200, 200), 10, multiline=True, width=pw - 32)
-        self.txt_reiniciar  = arcade.Text("R=nivel  N=inicio  ESC=menu",
-                                           cx, 16, (120, 120, 120), 9, anchor_x="center")
+        mover = "WASD" if self.controles == "wasd" else "Flechas"
+        controles_texto = (f"{mover}: mover\n"
+                           "R: reiniciar nivel     N: reiniciar juego\n"
+                           "ESC: menu")
+        self.txt_controles = pnl.crear_texto(controles_texto, x, 10, (200, 200, 200),
+                                             ancho=ancho_texto)
+        # Antes había además un recordatorio al pie del panel
+        # ("R=nivel  N=inicio  ESC=menu") que repetía palabra por palabra lo
+        # que ya dice el bloque CONTROLES. Se sacó: eran 24px de alto para
+        # no decir nada nuevo, y el panel de la campaña no entraba.
 
         # Textos para los overlays de victoria y derrota. Modo Infinito no
         # tiene "nivel final": cada nivel completado muestra el mismo
@@ -585,19 +623,28 @@ class Juego(arcade.View):
 
     # ── Detección de teclas según esquema de controles ────────────────────────
     def _tecla_arriba(self, symbol):
+        """Si la tecla apretada es la de subir, según los controles elegidos."""
         return symbol == (arcade.key.W  if self.controles == "wasd" else arcade.key.UP)
 
     def _tecla_abajo(self, symbol):
+        """Si la tecla apretada es la de bajar, según los controles elegidos."""
         return symbol == (arcade.key.S  if self.controles == "wasd" else arcade.key.DOWN)
 
     def _tecla_izquierda(self, symbol):
+        """Si la tecla apretada es la de ir a la izquierda."""
         return symbol == (arcade.key.A  if self.controles == "wasd" else arcade.key.LEFT)
 
     def _tecla_derecha(self, symbol):
+        """Si la tecla apretada es la de ir a la derecha."""
         return symbol == (arcade.key.D  if self.controles == "wasd" else arcade.key.RIGHT)
 
     # ── Eventos ───────────────────────────────────────────────────────────────
     def on_key_press(self, symbol, modifiers):
+        """Reparte cada tecla a lo que corresponda.
+
+        R reinicia el nivel, N vuelve al primero, ESC va al menú y las
+        flechas (o WASD) mueven. Con el nivel ganado o perdido solo se
+        aceptan las de reinicio."""
         if self._tecla_arriba(symbol):
             self._intentar_mover(0, 1)
         elif self._tecla_abajo(symbol):
@@ -630,6 +677,7 @@ class Juego(arcade.View):
     # ── Lógica de juego ───────────────────────────────────────────────────────
     def _intentar_recoger_llave(self):
         """Recoge la llave si UAIBOT está en la misma celda y aún no la tiene.
+
         Al recogerla, dispara la animación de apertura de las puertas correspondientes."""
         if self.pos_llave and (self.col, self.fila) == self.pos_llave and not self.tiene_llave:
             self._guardar_snapshot()
@@ -643,6 +691,7 @@ class Juego(arcade.View):
 
     def _intentar_mover(self, dc, df):
         """Intenta mover a UAIBOT en la dirección (dc, df).
+
         Verifica límites, paredes y sendero antes de confirmar el movimiento.
         También procesa hielo, teleportes, placas y condición de victoria.
 
@@ -705,6 +754,7 @@ class Juego(arcade.View):
         # qué sprite de huella (arriba/abajo/izquierda/derecha) usar.
         self.col, self.fila = nc, nf
         self.direcciones[(nc, nf)] = (dc, df)
+        self.mirando_derecha = spr.mirada_segun(dc, self.mirando_derecha)
         self.sendero.add((nc, nf))
         self._agregar_huella(nc, nf)
         self.pasos += 1
@@ -784,7 +834,8 @@ class Juego(arcade.View):
         self.puntaje_nivel = self._calcular_puntaje()
         self.puntaje_total += self.puntaje_nivel
         self.txt_puntaje.value = str(self.puntaje_total)
-        guardado.actualizar_highscore(self.puntaje_total)
+        if self._persiste_highscore():
+            guardado.actualizar_highscore(self.puntaje_total)
         self._guardar_progreso()
         arcade.play_sound(self.snd_victoria)
         for _ in range(80):
@@ -792,6 +843,7 @@ class Juego(arcade.View):
 
     def _calcular_puntaje(self):
         """Calcula el puntaje del nivel (1-10) según la eficiencia del recorrido.
+
         Si se usó el mínimo de pasos posible, se obtienen 10 puntos."""
         if not self.pasos_minimos:
             return 10
@@ -800,6 +852,11 @@ class Juego(arcade.View):
 
     # ── Actualización ─────────────────────────────────────────────────────────
     def on_update(self, delta_time):
+        """Un cuadro de juego: animación, movimiento suave y estado del nivel.
+
+        El movimiento entre celdas no es un salto: la posición en píxeles
+        se acerca de a poco a la celda destino, y recién al llegar se
+        considera quieto al personaje."""
         # Avanzar animación de UAIBOT
         self.animacion_portal += delta_time * 3.0
         self.timer_frame += 1
@@ -860,6 +917,7 @@ class Juego(arcade.View):
 
     def _actualizar_animacion_puertas(self):
         """Avanza un frame la animación de apertura de cada puerta activa.
+
         Se detiene automáticamente al llegar al último frame (puerta abierta)."""
         for estado in self.anim_puertas_llave.values():
             if estado["animando"]:
@@ -883,6 +941,11 @@ class Juego(arcade.View):
 
     # ── Dibujo ────────────────────────────────────────────────────────────────
     def on_draw(self):
+        """Dibuja el nivel completo, de atrás hacia adelante.
+
+        El orden importa: piso, sendero, obstáculos, objetos y por último
+        el personaje, para que nada le quede encima. El panel lateral y
+        los overlays van al final, fuera de la cámara."""
         self.window.clear((20, 28, 36))
 
         # Modo con cámara (tilemap de Tiled): scroll horizontal
@@ -936,6 +999,7 @@ class Juego(arcade.View):
 
     def _dibujar_teleportes(self):
         """Dibuja los teleportes con su animación en loop.
+
         Son pocos por nivel y cambian de textura cada frame, así que se
         mantienen con dibujo individual en vez de SpriteList (ver nota de
         performance al inicio del archivo)."""
@@ -989,6 +1053,7 @@ class Juego(arcade.View):
 
     def _dibujar_llave(self):
         """Dibuja la llave animada si UAIBOT todavía no la recogió.
+
         A tamaño NATIVO del frame (20x20): antes se forzaba a la celda
         completa (60x60) y el estirado 3x la dejaba difusa."""
         if self.pos_llave and not self.tiene_llave:
@@ -1025,7 +1090,8 @@ class Juego(arcade.View):
         # el módulo protege el caso de que idle y walk traigan distinta
         # cantidad de frames y se cambie de animación a mitad del ciclo
         arcade.draw_texture_rect(
-            frames[self.frame_actual % len(frames)],
+            spr.orientar(frames[self.frame_actual % len(frames)],
+                         self.mirando_derecha),
             arcade.XYWH(self.px_x, self.px_y, TAM_CELDA, TAM_CELDA)
         )
 
@@ -1042,6 +1108,46 @@ class Juego(arcade.View):
                     (*COLOR_ACENTO[:3], alpha), 18,
                     anchor_x="center", anchor_y="center").draw()
 
+    # Los íconos van pegados al borde derecho del panel, a la altura del
+    # título de su sección. Si el arte no está, el panel queda igual.
+    x_iconos = ANCHO_JUEGO + PANEL_ANCHO - 26
+
+    # El panel arranca abajo del encabezado fijo (título, nivel, dificultad)
+    # y termina arriba del recordatorio del pie.
+    y_panel_desde = ALTO_VENTANA - 128
+    y_panel_hasta = 20
+
+    def _secciones_panel(self):
+        """Las secciones del panel, de arriba hacia abajo.
+
+        Es el único lugar donde se decide QUÉ muestra el panel y en qué
+        orden; las posiciones las calcula panel.acomodar(). Un modo que
+        quiera sumar un bloque en el medio inserta acá y no toca nada más:
+        antes había que correr a mano la Y de todos los de abajo, y de ahí
+        salieron los dos choques que arreglamos (llave sobre personaje,
+        controles sobre el pie)."""
+        return [
+            pnl.Seccion("MISION", self.txt_mision),
+            pnl.Seccion("PASOS", [self.txt_pasos, self.txt_pasos_min, self.txt_limite],
+                        icono=ICONO_PASOS),
+            pnl.Seccion("PUNTAJE", self.txt_puntaje),
+            pnl.Seccion(None, self.txt_llave, icono=ICONO_LLAVE,
+                        visible=self._muestra_llave()),
+            pnl.Seccion("CONTROLES", self.txt_controles),
+        ]
+
+    def _muestra_llave(self):
+        """En Infinito la llave solo existe en dificultad difícil. Viaje y
+        Multijugador la muestran siempre que el mapa traiga una."""
+        return self.dificultad == "dificil" and bool(self.pos_llave)
+
+    def _acomodar_panel(self):
+        """Recalcula las posiciones del panel. Se llama al final de cada
+        _crear_textos, porque las secciones visibles cambian entre niveles
+        -un mapa puede traer llave y el siguiente no-."""
+        self.secciones_panel = pnl.acomodar(
+            self._secciones_panel(), self.y_panel_desde, self.y_panel_hasta)
+
     def _dibujar_panel(self):
         """Dibuja el panel lateral derecho con toda la información del juego."""
         arcade.draw_lrbt_rectangle_filled(
@@ -1052,30 +1158,13 @@ class Juego(arcade.View):
         self.txt_ofirca.draw()
         self.txt_nivel.draw()
         self.txt_dificultad.draw()
-        self.txt_mision_titulo.draw()
-        self.txt_mision.draw()
-        self.txt_pasos_titulo.draw()
-        self.txt_pasos.draw()
-        self.txt_pasos_min.draw()
-        self.txt_limite.draw()
-        self.txt_puntaje_titulo.draw()
-        self.txt_puntaje.draw()
-        self.txt_controles_titulo.draw()
-        self.txt_controles.draw()
-        self.txt_reiniciar.draw()
-        self._dibujar_iconos_panel()
-        if self.dificultad == "dificil" and self.pos_llave:
-            self.txt_llave.draw()
-            spr.dibujar_icono(ICONO_LLAVE, self.x_iconos, self.txt_llave.y + 5)
+        self._actualizar_panel()
+        pnl.dibujar(self.secciones_panel, ANCHO_JUEGO, ANCHO_VENTANA,
+                    self.x_iconos, spr.dibujar_icono)
 
-    # Los íconos van pegados al borde derecho del panel, alineados con el texto
-    # que acompañan. Así no hay que recolocar ni un solo texto: si el arte no
-    # está, el panel queda exactamente como estaba.
-    x_iconos = ANCHO_JUEGO + PANEL_ANCHO - 26
-
-    def _dibujar_iconos_panel(self):
-        """Íconos del panel base. Las subclases suman los suyos."""
-        spr.dibujar_icono(ICONO_PASOS, self.x_iconos, self.txt_pasos_titulo.y + 5)
+    def _actualizar_panel(self):
+        """Refresca los textos que cambian cuadro a cuadro. Las subclases
+        que muestran cronómetros o estado de conexión lo extienden."""
 
     def _dibujar_overlay_victoria(self):
         """Overlay de victoria con confeti, puntaje obtenido y mensaje de continuación."""

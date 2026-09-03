@@ -5,7 +5,7 @@
 # constantes.OBJETOS_MULTIJUGADOR.
 #
 # Uso: la key se lee del registro de Windows (setx PIXELLAB_API_KEY "token")
-#   uv run python generar_objetos.py
+#   uv run python generacion/generar_objetos.py
 
 import base64
 import json
@@ -14,6 +14,13 @@ import sys
 import urllib.request
 
 API = "https://api.pixellab.ai/v2"
+
+# Los PNG van a assets/imagenes/ de la raíz del proyecto, no al directorio
+# desde el que se corre el script: este archivo vive en generacion/ y se
+# puede ejecutar parado en cualquier lado.
+RAIZ   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ASSETS = os.path.join(RAIZ, "assets", "imagenes")
+
 key = None
 
 OBJETOS = {
@@ -65,7 +72,7 @@ def main():
 
     for nombre, descripcion in OBJETOS.items():
         png = generar(nombre, descripcion)
-        with open(f"assets/{nombre}.png", "wb") as f:
+        with open(os.path.join(ASSETS, f"{nombre}.png"), "wb") as f:
             f.write(png)
         print(f"[{nombre}] guardado ({len(png)} bytes)")
 

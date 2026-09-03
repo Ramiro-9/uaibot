@@ -65,6 +65,7 @@ class Habilidades:
     # ── Consultas ─────────────────────────────────────────────────────────
     def _usos_restantes(self):
         """Cuántos usos le quedan a la habilidad del personaje actual.
+
         None significa que no tiene límite."""
         personaje = self._personaje_de_habilidad()
         tope = personaje.get("usos_por_nivel")
@@ -73,10 +74,12 @@ class Habilidades:
         return tope - self.usos_gastados.get(personaje["id"], 0)
 
     def _gastar_uso(self):
+        """Anota un uso más de la habilidad del personaje activo."""
         personaje = self._personaje_de_habilidad()
         self.usos_gastados[personaje["id"]] = self.usos_gastados.get(personaje["id"], 0) + 1
 
     def _mostrar_aviso(self, texto):
+        """Muestra un cartelito al pie durante unos segundos."""
         self.aviso_habilidad = texto
         self.timer_aviso     = 2.5
 
@@ -93,6 +96,7 @@ class Habilidades:
 
     def celdas_al_alcance(self, col, fila):
         """Las celdas desde las que el personaje actual puede recoger algo:
+
         la propia siempre, y las cuatro vecinas si tiene Alcance."""
         celdas = [(col, fila)]
         if self._tiene_alcance():
@@ -123,6 +127,11 @@ class Habilidades:
         self._mostrar_aviso("Rampa usada")
 
     def _usar_rampa(self):
+        """Arma la Rampa: deja que el próximo paso cruce una celda ya recorrida.
+
+        No se gasta el uso acá sino al cruzar de verdad (ver
+        consumir_rampa_si_correspondia), para no cobrarle al jugador un
+        uso si arma la rampa y después se arrepiente."""
         if self.rampa_armada:
             self.rampa_armada = False
             self._mostrar_aviso("Rampa cancelada")
@@ -174,6 +183,7 @@ class Habilidades:
 
     # ── Actualización y dibujo ────────────────────────────────────────────
     def actualizar_habilidades(self, delta_time):
+        """Descuenta el tiempo que le queda a los avisos en pantalla."""
         if self.timer_guia > 0:
             self.timer_guia -= delta_time
             if self.timer_guia <= 0:

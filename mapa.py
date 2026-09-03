@@ -14,6 +14,7 @@ from constantes import *
 
 def cargar_mapa(ruta_tmx):
     """Carga un mapa de Tiled y retorna un diccionario con todos los datos del nivel.
+
     Si falla la carga, retorna None para que nivel.py use la generación automática."""
     try:
         tile_map = arcade.load_tilemap(ruta_tmx, scaling=1.0)
@@ -106,8 +107,9 @@ def cargar_mapa(ruta_tmx):
                     id_puerta = props.get("id_puerta", None)
                     objetos["interruptores"].append({"pos": (col, fila), "id": id_puerta})
                 elif nombre == "donacion":
-                    # Ítem coleccionable del Modo Viaje: uno de los tres tipos
-                    # (comida / libros / juguetes) según la propiedad "tipo".
+                    # Ítem coleccionable del Modo Viaje: uno de los cuatro
+                    # tipos (comida / libros / juguetes / sillas) según la
+                    # propiedad "tipo".
                     # La recolección —pisar la celda lo suma al contador— es
                     # lógica de viaje.py, no de este parser.
                     tipo = props.get("tipo", "comida")

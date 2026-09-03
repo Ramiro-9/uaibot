@@ -14,6 +14,7 @@ import arcade
 
 import guardado
 import nivel as nivel_mod
+import panel as pnl
 import sprites as spr
 from constantes import *
 from habilidades import Habilidades
@@ -137,8 +138,12 @@ class Viaje(Habilidades, Juego):
         self._guardar_snapshot()
         self.personaje_activo = (self.personaje_activo + 1) % len(self.personajes_disponibles)
         self._actualizar_texto_personaje()
+        # El ícono de la sección PERSONAJE es el de la habilidad del que
+        # está activo, así que hay que rehacer las secciones.
+        self._acomodar_panel()
 
     def _actualizar_texto_personaje(self):
+        """Refresca el bloque del panel: quién está activo y cuál es su habilidad."""
         personaje = self.personajes_disponibles[self.personaje_activo]
         total     = len(self.personajes_disponibles)
         self.txt_personaje.value = f"{personaje['nombre']}  ({total} en el equipo)"
@@ -221,6 +226,10 @@ class Viaje(Habilidades, Juego):
             "sendero":     set(self.sendero),
             "direcciones": dict(self.direcciones),
             "pasos":       self.pasos,
+            # Deshacer un paso hacia la izquierda tiene que devolver también
+            # la orientación anterior, o el personaje queda mirando hacia
+            # donde ya no caminó.
+            "mirando_derecha": self.mirando_derecha,
             "cajas":       set(self.cajas),
             "paredes":     set(self.paredes),
             "tiene_llave": self.tiene_llave,
@@ -250,6 +259,7 @@ class Viaje(Habilidades, Juego):
         self.sendero      = s["sendero"]
         self.direcciones  = s["direcciones"]
         self.pasos        = s["pasos"]
+        self.mirando_derecha = s["mirando_derecha"]
         self.cajas        = s["cajas"]
         self.paredes      = s["paredes"]
         self.tiene_llave  = s["tiene_llave"]
@@ -290,73 +300,46 @@ class Viaje(Habilidades, Juego):
         # Los mapas de la campaña tienen llave y puertas con llave, así que
         # conviene avisarlo aunque no sea dificultad "difícil".
         if self.pos_llave:
-            self.txt_mision.value = "Llega al portal\npara avanzar.\nRecoge la llave\ncon E."
+            self.txt_mision.value = "Llega al portal. Recoge la llave con E."
         if self.donaciones:
-            self.txt_mision.value += "\nRecoge las\ndonaciones."
+            self.txt_mision.value += " Recoge las donaciones."
 
-        # Cronómetro (consigna de la Ronda 2), en el hueco que dejó el
-        # texto del límite de pasos.
-        self.txt_cronometro = arcade.Text(
-            f"Tiempo: {self.tiempo_transcurrido:.1f}s",
-            ANCHO_JUEGO + 16, ALTO_VENTANA - 334, (100, 180, 220), 11
-        )
-
-        # Personaje activo, con el nombre en su color. Se mete entre el
-        # puntaje y los controles, y para eso hay que correr el indicador
-        # de llave un poco más abajo del lugar donde lo pone Juego.
-        self.txt_personaje_titulo = arcade.Text(
-            "PERSONAJE (C)", ANCHO_JUEGO + 16, ALTO_VENTANA - 404,
-            arcade.color.GOLD, 11, bold=True
-        )
-        self.txt_personaje = arcade.Text(
-            "", ANCHO_JUEGO + 16, ALTO_VENTANA - 420, (200, 200, 200), 11, bold=True
-        )
-        self.txt_habilidad = arcade.Text(
-            "", ANCHO_JUEGO + 16, ALTO_VENTANA - 436, (150, 200, 150), 9
-        )
-        self.txt_llave.y = ALTO_VENTANA - 452
+        # Textos propios de la campaña. Ninguno lleva Y: el orden en que
+        # aparecen lo decide _secciones_panel.
+        x = ANCHO_JUEGO + pnl.MARGEN_X
+        self.txt_cronometro = pnl.crear_texto(
+            f"Tiempo: {self.tiempo_transcurrido:.1f}s", x, 11, (100, 180, 220))
+        self.txt_donaciones = pnl.crear_texto("", x, 10, (220, 180, 120), bold=True)
+        self.txt_personaje  = pnl.crear_texto("", x, 11, (200, 200, 200), bold=True)
+        self.txt_habilidad  = pnl.crear_texto("", x, 9, (150, 200, 150))
         self._actualizar_texto_personaje()
-
-        # Contador de donaciones, en el hueco entre el cronómetro y el
-        # puntaje. Solo se muestra si el nivel tiene donaciones.
-        self.txt_donaciones = arcade.Text(
-            "", ANCHO_JUEGO + 16, ALTO_VENTANA - 348, (220, 180, 120), 10, bold=True
-        )
         self._actualizar_texto_donaciones()
 
         # Se rehace el bloque de controles para sumar C y Z.
-        controles_texto = (
-            "WASD: mover\nC: cambiar personaje\nZ: deshacer\nR: reiniciar nivel\nESC: menu"
-            if self.controles == "wasd" else
-            "Flechas: mover\nC: cambiar personaje\nZ: deshacer\nR: reiniciar nivel\nESC: menu"
-        )
+        mover = "WASD" if self.controles == "wasd" else "Flechas"
+        controles_texto = (f"{mover}: mover\n"
+                           "C: personaje     Z: deshacer\n"
+                           "R: reiniciar     ESC: menu")
         self.txt_controles.value = controles_texto
 
-    def _dibujar_panel(self):
-        super()._dibujar_panel()
-        self.txt_cronometro.draw()
-        self.txt_donaciones.draw()
-        self.txt_personaje_titulo.draw()
-        self.txt_personaje.draw()
-        self.txt_habilidad.draw()
-        # Juego solo dibuja el indicador de llave en dificultad difícil;
-        # en la campaña se muestra siempre que el nivel tenga una llave.
-        if self.pos_llave:
-            self.txt_llave.draw()
-            spr.dibujar_icono(ICONO_LLAVE, self.x_iconos, self.txt_llave.y + 5)
+    def _secciones_panel(self):
+        """Suma a las de Juego el cronómetro, las donaciones y el personaje
+        activo. Insertar en el medio no obliga a mover nada de lo demás."""
+        secciones = super()._secciones_panel()
+        secciones.insert(2, pnl.Seccion("TIEMPO", [self.txt_cronometro,
+                                                   self.txt_donaciones],
+                                        icono=ICONO_RELOJ))
+        habilidad = ICONOS_HABILIDAD.get(
+            self.personajes_disponibles[self.personaje_activo]["habilidad"])
+        secciones.insert(4, pnl.Seccion("PERSONAJE (C)",
+                                        [self.txt_personaje, self.txt_habilidad],
+                                        icono=habilidad))
+        return secciones
 
-    def _dibujar_iconos_panel(self):
-        """Suma a los del panel base el reloj del cronómetro y el ícono de la
-        habilidad del personaje activo, que cambia al apretar C.
-
-        El de habilidad va a la altura del encabezado PERSONAJE y no de la
-        línea de habilidad: esa línea está a solo 16px de la de llave, y dos
-        íconos de 20px ahí se pisan."""
-        super()._dibujar_iconos_panel()
-        spr.dibujar_icono(ICONO_RELOJ, self.x_iconos, self.txt_cronometro.y + 5, 16)
-        icono = ICONOS_HABILIDAD.get(self._personaje_de_habilidad()["habilidad"])
-        if icono:
-            spr.dibujar_icono(icono, self.x_iconos, self.txt_personaje_titulo.y + 3)
+    def _muestra_llave(self):
+        """A diferencia de Infinito, la campaña muestra el indicador siempre
+        que el mapa traiga una llave, sin importar la dificultad."""
+        return bool(self.pos_llave)
 
     def _animacion_activa(self):
         """Frames y color del personaje activo.
@@ -367,6 +350,7 @@ class Viaje(Habilidades, Juego):
         return self.familia[self.personajes_disponibles[self.personaje_activo]["id"]]
 
     def _frames_activos(self):
+        """Los frames del personaje activo: caminando o quieto."""
         datos = self._animacion_activa()
         return datos["walk"] if self.moviendose else datos["idle"]
 
@@ -382,13 +366,15 @@ class Viaje(Habilidades, Juego):
         self.dibujar_habilidades()
         frames = self._frames_activos()
         arcade.draw_texture_rect(
-            frames[self.frame_actual % len(frames)],
+            spr.orientar(frames[self.frame_actual % len(frames)],
+                         self.mirando_derecha),
             arcade.XYWH(self.px_x, self.px_y, TAM_CELDA, TAM_CELDA),
             color=arcade.types.Color(*self._animacion_activa()["color"])
         )
 
     # ── Actualización ─────────────────────────────────────────────────────────
     def on_update(self, delta_time):
+        """Un cuadro de campaña: además del motor, corre el cronómetro."""
         super().on_update(delta_time)
 
         # El cronómetro corre mientras se está jugando: se congela al ganar
@@ -401,6 +387,10 @@ class Viaje(Habilidades, Juego):
 
     # ── Eventos ───────────────────────────────────────────────────────────────
     def on_key_press(self, symbol, modifiers):
+        """Suma a las teclas de Juego las propias de la campaña.
+
+        C cambia de personaje entre los desbloqueados y Z deshace. Con la
+        campaña terminada, R vuelve a empezar desde el nivel 1."""
         # Terminada la campaña, R y N vuelven a empezar desde el nivel 1
         # (en Juego, R reiniciaría el último nivel).
         if self.juego_completado and symbol in (arcade.key.R, arcade.key.N):
@@ -422,6 +412,7 @@ class Viaje(Habilidades, Juego):
 
     # ── Dibujo ────────────────────────────────────────────────────────────────
     def on_draw(self):
+        """Dibuja el nivel y encima el cartel de estado de las habilidades."""
         super().on_draw()
         # El cartel de estado de las habilidades va arriba de todo, para que
         # no lo tape ni el mapa ni el panel.

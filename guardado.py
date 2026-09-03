@@ -44,6 +44,8 @@ DATOS_DEFAULT = {
 }
 
 
+# ── Lectura y escritura del archivo ─────────────────────────────────────────
+
 def _completar_con_default(datos):
     """Completa un diccionario de guardado con las claves que le falten,
     tomándolas de DATOS_DEFAULT. Hace merge un nivel adentro para los
@@ -83,8 +85,10 @@ def guardar(datos):
         json.dump(datos, f, indent=4)
 
 
+# ── Récords y progreso ──────────────────────────────────────────────────────
+
 def actualizar_highscore(puntaje_nuevo):
-    """Actualiza el highscore simple (Tutorial / Viaje / Multijugador)
+    """Actualiza el highscore simple (Tutorial / Viaje)
     solo si el puntaje nuevo es mayor al guardado."""
     datos = cargar()
     if puntaje_nuevo > datos["highscore"]:
@@ -101,6 +105,7 @@ def actualizar_controles(modo):
 
 def actualizar_volumenes(menu=None, nivel=None):
     """Guarda los volúmenes de música por separado (menú y niveles).
+
     Solo actualiza el que reciba; el otro queda como estaba."""
     datos = cargar()
     if menu is not None:
@@ -112,6 +117,7 @@ def actualizar_volumenes(menu=None, nivel=None):
 
 def actualizar_highscore_infinito(puntaje_total, nivel_alcanzado):
     """Actualiza las dos métricas del Modo Infinito de forma independiente:
+
     el puntaje total solo sube si es mayor al guardado, y lo mismo para
     el nivel más alto alcanzado — no hace falta que ambos récords se
     batan en la misma partida."""
@@ -123,8 +129,11 @@ def actualizar_highscore_infinito(puntaje_total, nivel_alcanzado):
     guardar(datos)
 
 
+# ── Desbloqueos que alimentan el Bestiario ──────────────────────────────────
+
 def desbloquear_personaje(nombre):
     """Agrega un personaje a la lista de desbloqueados (Modo Viaje).
+
     No hace nada si el personaje ya estaba desbloqueado."""
     datos = cargar()
     if nombre not in datos["personajes_desbloqueados"]:
@@ -149,6 +158,8 @@ def actualizar_progreso_viaje(nivel_actual, completado=False):
     datos["progreso_viaje"]["completado"]   = completado
     guardar(datos)
 
+
+# ── Puntajes del Tutorial (consigna 4) ──────────────────────────────────────
 
 def registrar_puntaje_tutorial(nombre, tiempo_segundos):
     """Agrega una línea a puntajes_tutorial.txt con el nombre ingresado al

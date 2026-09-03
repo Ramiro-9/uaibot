@@ -1,5 +1,12 @@
 EXTRAS.TXT — Funcionalidades agregadas más allá de las consignas
-Proyecto: UAIBOT — OFIRCA 2026, Desafío Ronda 1
+Proyecto: UAIBOT — OFIRCA 2026
+================================================================
+
+Este archivo tiene dos partes: los extras que ya se habían agregado en la
+Ronda 1, y los de la Ronda 2. Al final se aclara lo único que se sacó.
+
+================================================================
+PARTE 1 — EXTRAS DE LA RONDA 1
 ================================================================
 
 Además de cumplir las 7 consignas obligatorias del desafío (contador de
@@ -18,9 +25,11 @@ funcionalidades adicionales:
    niveles con dificultad creciente, y puntaje acumulado entre niveles.
 
 3. SISTEMA DE DIFICULTAD (fácil / medio / difícil)
-   Configurable desde el menú y persistente entre partidas. Cada
-   dificultad cambia la cantidad de obstáculos, si hay límite de pasos,
-   y si aparece la mecánica de llave.
+   Cada dificultad cambia la cantidad de obstáculos, si hay límite de
+   pasos, y si aparece la mecánica de llave.
+   NOTA RONDA 2: en la Ronda 1 la dificultad se elegía a mano desde el
+   menú. Ahora ya no: el sistema sigue existiendo, pero cada modo decide
+   qué dificultad usar (ver la nota del final).
 
 4. GENERACIÓN PROCEDURAL DE MAPAS CON CAMINO GARANTIZADO
    Los niveles no vienen todos prearmados: se generan paredes al azar y
@@ -73,8 +82,9 @@ funcionalidades adicionales:
 
 15. ANIMACIÓN DE UAIBOT CAMINANDO
     Sprite animado con spritesheets separados de Idle (quieto) y Walk
-    (caminando), 6 frames cada uno, más movimiento interpolado
-    suavemente entre celdas (no salto instantáneo).
+    (caminando), más movimiento interpolado suavemente entre celdas (no
+    salto instantáneo). En la Ronda 1 eran 6 frames por animación; las
+    hojas propias de la Ronda 2 traen 4 (ver el extra 27).
 
 16. ANIMACIONES IDLE EN LOOP DE LLAVE, PORTAL Y TELEPORTE
     Estos tres elementos no son sprites estáticos: rotan sus frames en
@@ -99,7 +109,135 @@ funcionalidades adicionales:
     pueden elegirse pasando el cursor y haciendo click, con el mismo
     resaltado visual que la navegación por teclado.
 
+Nota de la Ronda 1: todas estas funcionalidades están sujetas a que las
+7 consignas obligatorias se cumplan primero (cumplido en nivel 1 /
+dificultad fácil, que es el nivel fijo de referencia), tal como indica el
+enunciado. En la Ronda 2 las 13 consignas se concentran en el Modo
+Tutorial (ver más abajo).
+
+
 ================================================================
-Nota: todas estas funcionalidades están sujetas a que las 7 consignas
-obligatorias se cumplan primero (cumplido en nivel 1 / dificultad fácil,
-que es el nivel fijo de referencia), tal como indica el enunciado.
+PARTE 2 — EXTRAS DE LA RONDA 2
+================================================================
+
+El cambio más grande de esta ronda es de estructura: el juego deja de ser
+una sola partida y pasa a tener CUATRO MODOS separados, elegibles desde
+el menú. Las 13 consignas del desafío se concentran en el Modo Tutorial,
+y los otros tres modos son el contenido extra.
+
+
+--- MODOS DE JUEGO -----------------------------------------------
+
+21. MODO TUTORIAL
+    Nivel único, fijo y autocontenido donde se cumplen las 13 consignas
+    graduadas del desafío: cronómetro, cambio de personaje con C con
+    cupo de 8 pasos cada uno, comida en hexágonos, ingreso de nombre a
+    un .txt al ganar, sillas de ruedas en triángulos que se recolectan
+    pasando por al lado la cantidad justa de veces, y deshacer con Z.
+    Está aparte a propósito: el jurado puede verificar las consignas sin
+    tener que jugar el resto.
+
+22. MODO INFINITO
+    El juego sin final: la dificultad escala sola cada 10 niveles hasta
+    llegar a "difícil", con puntaje acumulado y récord doble guardado
+    (puntaje total + nivel más alto alcanzado). Los niveles se generan
+    siempre de forma procedural.
+
+23. MODO VIAJE (campaña)
+    10 niveles fijos diseñados a mano en Tiled, con final propio: al
+    completar el último se muestra una pantalla de cierre con el tiempo
+    total y el puntaje. Sin límite de pasos, porque está pensado para
+    recorrerse y explorarse. Los personajes de la familia se van sumando
+    al equipo al avanzar (UAIBOTINO en el nivel 2, UAIBOTA en el 5 y
+    UAIBOTINA en el 8), y se puede deshacer con Z.
+
+24. MODO MULTIJUGADOR COOPERATIVO EN RED LOCAL
+    Dos jugadores en dos computadoras distintas, sobre los 10 mapas de
+    dificultad difícil. El camino recorrido y los pasos son del equipo,
+    no de cada uno, así que hay que coordinarse para no bloquearse. Uno
+    crea la partida y el otro se une escribiendo la IP que aparece en
+    pantalla. Incluye pantalla de cierre con los totales del equipo y
+    aviso si se corta la conexión.
+
+
+--- MECÁNICAS Y CONTENIDO ----------------------------------------
+
+25. HABILIDADES COMO TECNOLOGÍA ASISTIVA
+    Una por personaje, pensadas para resolver una barrera del escenario
+    y no para dar ventaja: Carga (UAIBOT empuja cajas), Rampa (UAIBOTA
+    cruza una celda ya recorrida), Guía (UAIBOTINA señala el camino al
+    merendero) y Alcance (UAIBOTINO toma cosas de una celda vecina sin
+    moverse). La Rampa es la única con tope de usos, porque es la única
+    que rompe la regla de no repisar el camino.
+
+26. INVENTARIO / BESTIARIO
+    Pantalla con los cuatro personajes y sus habilidades, y con los 10
+    objetos coleccionables del Multijugador. Lo que todavía no se
+    consiguió se muestra como silueta: se ve que existe sin revelar qué
+    es.
+
+27. ARTE PROPIO PARA LOS CUATRO PERSONAJES
+    En la Ronda 1 los cuatro hermanos compartían el spritesheet de
+    UAIBOT con un tinte de color encima. Ahora cada uno tiene sus hojas
+    de Idle y Walk, con el rasgo de su habilidad a la vista. Además los
+    sprites miran hacia donde caminaron.
+
+28. CUATRO TIPOS DE DONACIÓN EN MODO VIAJE
+    Comida, libros, juguetes y sillas de ruedas, cada una con su sprite.
+    Se recogen pisándolas, suman a un contador de campaña y el deshacer
+    con Z las devuelve al mapa.
+
+29. DIEZ OBJETOS COLECCIONABLES EN MULTIJUGADOR
+    Cada uno con su nombre y una descripción que cuenta su relación con
+    la familia o con el merendero. Los consigue el equipo —alcanza con
+    que cualquiera de los dos pise la celda— y quedan guardados para el
+    Bestiario.
+
+30. PANTALLA DE AJUSTES
+    Controles y volumen de la música (menú y niveles por separado),
+    guardados entre partidas. El volumen del menú se aplica en vivo.
+
+31. MÚSICA PROPIA
+    Los dos temas del juego se reemplazaron por música generada para
+    este proyecto (ver prompt.txt), en vez de las pistas anteriores.
+
+
+--- CALIDAD DEL PROYECTO -----------------------------------------
+
+32. PRUEBAS AUTOMÁTICAS DEL MULTIJUGADOR
+    28 pruebas que levantan un anfitrión y un invitado de verdad,
+    conectados por un socket, y verifican que los dos terminen viendo lo
+    mismo. Es la única parte del juego que no se puede probar solo: sin
+    esto harían falta dos personas y mucha paciencia para llegar a los
+    casos raros. Están en pruebas/ y corren en segundos.
+
+33. INTERFAZ UNIFICADA
+    El panel lateral se arma solo a partir de las secciones que cada
+    modo declara, en vez de tener las posiciones escritas a mano, y
+    todas las pantallas de menú comparten el mismo cuadro y encabezado.
+
+34. DOCUMENTACIÓN PARA QUIEN QUIERA INTERVENIR EL JUEGO
+    Como los proyectos ganadores se comparten con escuelas primarias
+    para que los recorran e intervengan, se dejó en docs/ una referencia
+    completa de cómo se configuran los mapas en Tiled: qué capas lee el
+    juego, qué nombre y qué propiedades lleva cada objeto, y con qué hay
+    que tener cuidado.
+
+
+================================================================
+LO QUE SE SACÓ RESPECTO DE LA RONDA 1
+================================================================
+
+Se revisaron los 20 extras de la Ronda 1 contra el código actual: 19
+siguen funcionando igual. El único que cambió es este:
+
+  - SELECCIÓN MANUAL DE DIFICULTAD EN EL MENÚ (era parte del extra 3).
+    En la Ronda 1 el jugador elegía fácil / medio / difícil antes de
+    empezar. Con los cuatro modos separados eso dejó de tener sentido,
+    porque cada modo ya define su propia dificultad: Tutorial no usa
+    ninguna, Infinito escala solo cada 10 niveles, Viaje usa los mapas
+    de dificultad media y Multijugador los de difícil. El sistema de
+    dificultad sigue existiendo entero por dentro; lo que se sacó es la
+    opción del menú, que quedó reemplazada por la entrada de Ajustes.
+
+No se sacó ninguna mecánica ni ninguna funcionalidad del juego.

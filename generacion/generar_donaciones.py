@@ -6,7 +6,7 @@
 # Uso:
 #   1. Configurar la API key como variable de entorno PIXELLAB_API_KEY
 #      (en PowerShell: setx PIXELLAB_API_KEY "tu-key", y reabrir la terminal).
-#   2. Ejecutar:  uv run python generar_donaciones.py
+#   2. Ejecutar:  uv run python generacion/generar_donaciones.py
 #
 # A diferencia de los endpoints Pro, pixflux es sincrónico: la respuesta
 # trae la imagen codificada en base64, que se decodifica directo a PNG.
@@ -18,6 +18,13 @@ import sys
 import urllib.request
 
 API     = "https://api.pixellab.ai/v2"
+
+# Los PNG van a assets/imagenes/ de la raíz del proyecto, no al directorio
+# desde el que se corre el script: este archivo vive en generacion/ y se
+# puede ejecutar parado en cualquier lado.
+RAIZ   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ASSETS = os.path.join(RAIZ, "assets", "imagenes")
+
 API_KEY = os.environ.get("PIXELLAB_API_KEY")
 
 # Los tres tipos de donación, en el tamaño de los ítems existentes
@@ -27,6 +34,11 @@ DONACIONES = {
     "donacion_comida":   "pixel art item, woven basket full of fresh bread, fruits and vegetables, warm colors, top-down game item, 64x64 pixel art style",
     "donacion_libros":   "pixel art item, small stack of colorful books with one open on top, cozy warm colors, top-down game item, 64x64 pixel art style",
     "donacion_juguetes": "pixel art item, teddy bear sitting next to a red ball and a small toy block, cheerful colors, top-down game item, 64x64 pixel art style",
+    # El primer intento salio con marco gris oscuro y quedaba como una
+    # mancha sobre el pasto: luminancia media 39 contra 111 de las otras
+    # tres. Se rehizo pidiendo marco claro y forzando la paleta de las tres
+    # existentes (parametro color_image), y quedo en 96.
+    "donacion_sillas":   "pixel art item, manual wheelchair, light silver metal frame with bright highlights, large spoked wheels, warm golden brown cushioned seat and backrest, cheerful and clearly readable, three quarter front view, warm saturated colors, dark outline, top-down game item",
 }
 
 
@@ -61,7 +73,7 @@ def main():
 
     for nombre, descripcion in DONACIONES.items():
         png = generar(nombre, descripcion)
-        with open(f"assets/{nombre}.png", "wb") as f:
+        with open(os.path.join(ASSETS, f"{nombre}.png"), "wb") as f:
             f.write(png)
         print(f"[{nombre}] guardado ({len(png)} bytes)")
 

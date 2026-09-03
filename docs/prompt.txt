@@ -1,10 +1,19 @@
 PROMPT.TXT — Documentación del uso de Inteligencia Artificial
-Proyecto: UAIBOT — OFIRCA 2026, Desafío Ronda 1
+Proyecto: UAIBOT — OFIRCA 2026
 ================================================================
 
-Este proyecto usó IA en dos frentes distintos: generación de una imagen
-de fondo, y asistencia de programación durante el desarrollo del código.
-Se detalla cada uno por separado, con los prompts reales utilizados.
+Este archivo documenta todo el uso de IA en el proyecto, con los prompts
+reales utilizados. Está dividido en dos partes: primero lo de la Ronda 1,
+y después lo de la Ronda 2, que es donde más se usó.
+
+En las dos rondas la IA se usó sobre decisiones ya tomadas por el equipo
+(qué mecánicas incorporar, cómo se juega cada modo, qué assets hacen
+falta). El equipo revisó, ajustó y probó cada resultado antes de
+incorporarlo.
+
+================================================================
+PARTE 1 — RONDA 1
+================================================================
 
 ----------------------------------------------------------------
 1. GENERACIÓN DE IMAGEN (ChatGPT)
@@ -82,8 +91,265 @@ plantearon):
       manteniendo el sprite centrado en la celda.
 
 ----------------------------------------------------------------
-Uso responsable: en todos los casos la IA se usó como herramienta de
-asistencia sobre decisiones ya tomadas por el equipo (arquitectura del
-juego, mecánicas, assets), no para generar el proyecto de forma
-autónoma. El equipo revisó, ajustó y probó cada cambio antes de
-incorporarlo al proyecto final.
+Cierre de la Ronda 1: la IA se usó como asistencia sobre decisiones ya
+tomadas por el equipo (arquitectura del juego, mecánicas, assets), no
+para generar el proyecto de forma autónoma.
+
+
+================================================================
+PARTE 2 — RONDA 2
+================================================================
+
+En la Ronda 2 se usaron tres herramientas de IA, cada una para algo
+distinto:
+
+  - Suno IA ................ música del juego
+  - PixelLab ............... todos los sprites nuevos
+  - Asistentes de código ... programación de los modos nuevos
+
+PixelLab se manejó de dos formas: a través del agente Zcode (modelo
+GLM 5.3) para los objetos coleccionables y las donaciones, y a través de
+Claude para el resto del arte. Se detalla cada frente por separado.
+
+
+----------------------------------------------------------------
+3. GENERACIÓN DE MÚSICA (Suno IA)
+----------------------------------------------------------------
+
+Herramienta: Suno IA
+Uso: los dos temas musicales del juego, que reemplazan a los de la
+     versión 1.3 (assets/audio/GameLevelMusic.wav y MenuMusic.wav)
+
+Los prompts se redactaron en inglés porque es el idioma con el que la
+herramienta responde mejor. Están también en docs/prompts_suno.md.
+
+Prompt de la música de nivel (GameLevelMusic):
+"Cheerful and adventurous chiptune music, upbeat 8-bit style with warm
+acoustic elements, top-down adventure game background music, no lyrics,
+loopable, feeling of exploration and kindness, children-friendly, pixel
+art game OST"
+
+Prompt de la música del menú (MenuMusic):
+"Calm and warm chiptune melody, gentle 8-bit piano with soft ambient
+sounds, main menu background music for a pixel art adventure game, no
+lyrics, loopable, hopeful and inviting mood, children-friendly"
+
+En los dos casos se pidió "no lyrics" y "loopable" porque la música
+tiene que poder repetirse sin corte mientras dura la partida, y
+"children-friendly" porque el juego está pensado para que lo recorran
+estudiantes de nivel primario.
+
+
+----------------------------------------------------------------
+4. OBJETOS Y DONACIONES (PixelLab, vía agente Zcode con GLM 5.3)
+----------------------------------------------------------------
+
+Herramienta: agente Zcode, modelo GLM 5.3, operando la API de PixelLab
+Uso: los 10 objetos coleccionables del Modo Multijugador, las 3
+     donaciones del Modo Viaje, y el código que los lee desde los mapas
+
+Al agente se le pidieron tres cosas:
+
+a) Generar con PixelLab los 10 objetos coleccionables, pidiendo que cada
+   uno estuviera ligado a la familia de UAIBOT o al merendero, en vez de
+   ser objetos genéricos.
+
+b) Escribir para cada objeto un nombre y una descripción corta que
+   contara su relación con la familia. Son las que muestra el Bestiario y
+   viven en constantes.OBJETOS_MULTIJUGADOR.
+
+c) Escribir el código que recibe las donaciones y los objetos desde los
+   mapas de Tiled. Resultó en el parser de mapa.py, que reconoce el
+   objeto "donacion" con su propiedad "tipo" (comida / libros /
+   juguetes) y el objeto "objeto" con su propiedad "objeto" (uno de los
+   10 ids), y los deja como datos para que cada modo los use.
+
+Los prompts finales que quedaron en el código son los que el agente armó
+para PixelLab. Están guardados en generacion/generar_objetos.py y
+generacion/generar_donaciones.py, que son los scripts que hicieron las
+llamadas. Los 10 de los objetos:
+
+  foto:        "pixel art item, framed family photo polaroid of four cute
+               small white robots standing together, warm cozy colors,
+               side view game item, 64x64 pixel art style"
+  tornillo:    "pixel art item, shiny golden screw with a small sparkle,
+               standing upright, game item, 64x64 pixel art style"
+  mochila:     "pixel art item, small pink backpack with heart patch and
+               side pocket, cute and sturdy, side view game item, 64x64
+               pixel art style"
+  farol:       "pixel art item, vintage hand lantern glowing with warm
+               yellow light, glass panels and metal handle, game item,
+               64x64 pixel art style"
+  alcanzador:  "pixel art item, telescopic grabber reacher tool with claw
+               grip end and green handle, assistive device, side view
+               game item, 64x64 pixel art style"
+  rueda:       "pixel art item, single robotic wheel with tire tread and
+               hubcap shine, spare part, game item, 64x64 pixel art style"
+  herramientas:"pixel art item, small red metal toolbox slightly open
+               showing wrench and screwdriver handles, game item, 64x64
+               pixel art style"
+  panel:       "pixel art item, small foldable solar panel with blue cells
+               and grid lines, tilted stand, game item, 64x64 pixel art
+               style"
+  bateria:     "pixel art item, chunky rechargeable battery pack with
+               green charge indicator lights and lightning bolt symbol,
+               game item, 64x64 pixel art style"
+  taza:        "pixel art item, cheerful ceramic mug with steam rising and
+               a small heart painted on it, warm colors, game item, 64x64
+               pixel art style"
+
+Y los tres de las donaciones del Modo Viaje:
+
+  comida:      "pixel art item, woven basket full of fresh bread, fruits
+               and vegetables, warm colors, top-down game item, 64x64
+               pixel art style"
+  libros:      "pixel art item, small stack of colorful books with one
+               open on top, cozy warm colors, top-down game item, 64x64
+               pixel art style"
+  juguetes:    "pixel art item, teddy bear sitting next to a red ball and
+               a small toy block, cheerful colors, top-down game item,
+               64x64 pixel art style"
+
+
+----------------------------------------------------------------
+5. RESTO DEL ARTE (PixelLab, vía Claude)
+----------------------------------------------------------------
+
+Herramienta: PixelLab, operado por Claude
+Uso: hojas de animación de los cuatro personajes, caja, huellas, íconos
+     del panel, marco de submenú y la cuarta donación
+
+a) HOJAS DE LOS CUATRO PERSONAJES (Idle + Walk)
+
+   Hasta la Ronda 1 los cuatro hermanos compartían el spritesheet de
+   UAIBOT con un tinte de color encima. Se pidió arte propio para cada
+   uno, con el rasgo de su habilidad a la vista.
+
+   Indicación del equipo que condicionó todo el pedido:
+   "no los haga con muchos frames porque sino después esos frames no se
+   aprecian" -> se generaron 4 poses por animación en vez de 6 u 8. Con
+   ciclos largos cada pose pasa demasiado rápido y el detalle del pixel
+   art no llega a leerse en pantalla.
+
+   Corrección importante durante el proceso: en un primer intento se
+   describió mal a UAIBOT y salió con un sombrero literal. UAIBOT tiene
+   DOS ANTENAS con orbes verdes, no un sombrero; a baja resolución se
+   parecen. Se regeneró con la descripción corregida.
+
+b) CUARTA DONACIÓN: SILLA DE RUEDAS
+
+   Se pidió sumar una cuarta donación al Modo Viaje. La silla de ruedas
+   ya aparecía en el Tutorial, pero ahí es una mecánica (hay que pasarle
+   por al lado sin pisarla); como donación se recoge pisándola, igual
+   que las otras tres.
+
+   Primer prompt:
+   "pixel art item, manual wheelchair with dark grey metal frame, large
+   spoked side wheels, small front casters, warm red cushioned seat and
+   backrest, three quarter front view, warm colors, dark outline,
+   top-down game item"
+
+   Resultado descartado: quedaba como una mancha oscura sobre el pasto.
+   Medido contra las otras tres donaciones, tenía luminancia media 39
+   contra 111 de ellas. Se rehizo pidiendo marco claro y pasándole como
+   referencia de paleta las tres donaciones ya existentes, para que
+   combinara:
+
+   "pixel art item, manual wheelchair, light silver metal frame with
+   bright highlights, large spoked wheels, warm golden brown cushioned
+   seat and backrest, cheerful and clearly readable, three quarter front
+   view, warm saturated colors, dark outline, top-down game item"
+
+   El segundo intento quedó en luminancia 96, ya en el mismo registro
+   que el resto. Los dos prompts están anotados en
+   generacion/generar_donaciones.py con el motivo del cambio.
+
+c) CAJA, HUELLAS, ÍCONOS Y MARCO
+
+   Se pidieron el sprite de la caja empujable, las cuatro huellas del
+   sendero, los íconos del panel lateral (pasos, reloj, llave y las
+   cuatro habilidades) y el marco ornamentado de los cuadros de menú.
+
+   Indicación del equipo sobre el tamaño de las huellas:
+   "ojo con el tamaño de las huellas: si son muy grandes superan a los
+   robots, pero si son muy pequeñas queda como de baja calidad; o
+   también podrías generarlos normales y después ajustas su tamaño"
+   -> Se generaron a tamaño normal y se ajustaron después. Para elegir
+      la medida se compararon 20, 22, 24 y 26 px contra el robot dibujado
+      a escala real de juego, y se eligió 22 px al 80% de opacidad.
+
+
+----------------------------------------------------------------
+6. ASISTENCIA DE PROGRAMACIÓN (Claude) — Ronda 2
+----------------------------------------------------------------
+
+El plan de trabajo de la Ronda 2 (docs/UAIBOT_plan_de_trabajo_Ronda2.md)
+lo redactó el equipo antes de programar, con las fases y los riesgos de
+cada una. Claude se usó para implementar las fases, no para decidirlas.
+
+a) MODO MULTIJUGADOR (Fase 4 del plan)
+
+   Es la parte de mayor riesgo técnico del proyecto, por ser la primera
+   vez que el equipo encaraba redes. El plan la especificaba así:
+
+     1. Descubrimiento LAN (UDP broadcast) + lista de partidas
+     2. Conexión TCP host-autoritativo + intercambio de inputs
+     3. Selección de personaje compartida
+     4. Objeto recolectable cooperativo (uno por nivel)
+     5. Interruptor compartido
+
+   Se implementaron los puntos 2, 3 y 4. El punto 1 quedó afuera por
+   decisión del equipo: el descubrimiento automático agrega una capa
+   que falla justo donde no se puede probar (firewalls, redes que aíslan
+   los dispositivos), así que se dejó que el invitado escriba la IP que
+   el anfitrión muestra en pantalla, que es lo que nunca falla. El punto
+   5 quedó pendiente.
+
+   Decisiones de diseño que se pidieron explícitamente y por qué:
+
+   - HOST AUTORITATIVO: el que crea la partida tiene el estado real; el
+     invitado manda "quiero moverme en esta dirección" y dibuja lo que
+     le contestan. Evita de raíz el bug más difícil de perseguir en un
+     multijugador, que es que las dos pantallas se desincronicen de a
+     poco sin que se sepa cuál tiene razón.
+
+   - ESTADO COMPLETO EN CADA MENSAJE en vez de solo lo que cambió. Es
+     más tráfico, pero en una red local con un juego de grilla es
+     despreciable, y por el mismo motivo de arriba.
+
+   - HILO DE LECTURA APARTE: Arcade dibuja en un solo hilo y leer de un
+     socket bloquea hasta que llega algo. Si se leyera desde el bucle de
+     dibujo, el juego se congelaría esperando al otro jugador. El hilo
+     de fondo deja lo que recibe en una cola y nunca toca el estado del
+     juego.
+
+   - EL MAPA NO VIAJA POR LA RED: las dos computadoras cargan su propio
+     .tmx y el anfitrión solo dice qué número de nivel es.
+
+   - RED SEPARADA DEL JUEGO: red.py no sabe nada de UAIBOT ni de celdas.
+     Eso permitió probar la red sola, sin abrir el juego, y distinguir
+     "falla la red" de "falla el juego" cuando algo no andaba.
+
+b) RESTO DE LAS FASES
+
+   Con el mismo criterio se implementaron las habilidades como
+   tecnología asistiva (una por personaje, pensadas para resolver una
+   barrera del escenario y no para dar ventaja), el Inventario /
+   Bestiario, la pantalla de Ajustes, el Modo Viaje y el rearmado del
+   panel lateral y de los submenús.
+
+c) PRUEBAS AUTOMÁTICAS
+
+   Se pidieron pruebas para el Multijugador porque es la única parte que
+   no se puede probar sola: hacen falta dos personas conectadas para
+   llegar a los casos raros. Están en pruebas/ y recorren esos casos en
+   segundos sobre 127.0.0.1, sin segunda computadora.
+
+----------------------------------------------------------------
+Uso responsable: la IA generó assets y escribió código, siempre a partir
+de decisiones de diseño tomadas por el equipo y volcadas antes en el
+plan de trabajo y en el documento de mecánicas (docs/). Cada resultado
+se revisó, se ajustó y se probó antes de incorporarlo. Los prompts de
+generación de sprites quedaron guardados dentro de los propios scripts
+que los usaron (generacion/), de modo que cualquiera pueda ver con qué
+se generó cada imagen y volver a generarla.
