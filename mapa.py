@@ -18,8 +18,6 @@ def cargar_mapa(ruta_tmx):
     Si falla la carga, retorna None para que nivel.py use la generación automática."""
     try:
         tile_map = arcade.load_tilemap(ruta_tmx, scaling=1.0)
-        print(f"Capas: {list(tile_map.sprite_lists.keys())}")
-        print(f"Objetos: {list(tile_map.object_lists.keys())}")
 
         paredes    = set()
         hielo      = set()
@@ -113,7 +111,7 @@ def cargar_mapa(ruta_tmx):
                     # La recolección —pisar la celda lo suma al contador— es
                     # lógica de viaje.py, no de este parser.
                     tipo = props.get("tipo", "comida")
-                    objetos["donaciones"].append({"pos": (col, fila), "tipo": tipo})
+                    objetos["donaciones"].append({"pos": (col, fila), "tipo": tipo, "recogida": False})
                 elif nombre == "objeto":
                     # Objeto coleccionable cooperativo del Multijugador: uno
                     # de los 10 de OBJETOS_MULTIJUGADOR (constantes.py),
@@ -121,7 +119,7 @@ def cargar_mapa(ruta_tmx):
                     # —cualquiera de los dos jugadores pisando la celda— es
                     # lógica de multijugador.py.
                     id_objeto = props.get("objeto", "foto")
-                    objetos["donaciones"].append({"pos": (col, fila), "tipo": id_objeto})
+                    objetos["donaciones"].append({"pos": (col, fila), "tipo": id_objeto, "recogida": False})
                 elif nombre == "teleporte":
                     id_tel = props.get("id_teleporte", 1)
                     teleportes.setdefault(id_tel, []).append((col, fila))
