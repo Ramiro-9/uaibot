@@ -135,12 +135,13 @@ class Menu(arcade.View):
 
     # ── Animación del fondo ───────────────────────────────────────────────────
     def on_show_view(self):
-        """Arranca la música del menú. Se usa on_show_view y no __init__ porque
-        __init__ también corre antes de que la ventana muestre esta vista; acá
-        se garantiza que suena cada vez que el menú aparece en pantalla."""
-        self.detener_musica()
-        Menu.musica_player = arcade.play_sound(
-            self.musica, volume=self.datos.get("volumen_musica_menu", 0.3), loop=True)
+        """Mantiene la música al volver de un submenú; la inicia si no suena."""
+        if Menu.musica_player is None:
+            Menu.musica_player = arcade.play_sound(
+                self.musica,
+                volume=self.datos.get("volumen_musica_menu", 0.3),
+                loop=True,
+            )
 
     @classmethod
     def detener_musica(cls):
