@@ -241,3 +241,32 @@ siguen funcionando igual. El único que cambió es este:
     opción del menú, que quedó reemplazada por la entrada de Ajustes.
 
 No se sacó ninguna mecánica ni ninguna funcionalidad del juego.
+
+
+===================================================================
+PARTE 3 — EXTRAS DE LA RONDA FINAL
+===================================================================
+
+35. GUÍA INTERACTIVA POR ACCIONES EN TUTORIAL
+    Se agregó una guía en el panel lateral que enseña siete acciones:
+    moverse, recoger comida, pasar junto a una silla, cambiar de robot,
+    romper una pared, deshacer y activar el alto contraste.
+
+    Avanza cuando el jugador realiza las acciones correctamente y las
+    reconoce aunque se hagan en otro orden. No es obligatorio completar
+    la guía para ganar.
+
+    Con G se puede ocultar o reactivar. Deshacer con Z conserva lo
+    aprendido; reiniciar la partida con R reinicia también el aprendizaje.
+    Funciona tanto con la apariencia normal como en alto contraste.
+
+36. AVISOS QUE EXPLICAN LAS REGLAS
+    Además de los sonidos, Tutorial muestra mensajes que explican por
+    qué no se puede avanzar: borde del mapa, pared o celda ya recorrida.
+    Al intentar entrar al merendero, informa qué recursos faltan o si
+    se excedieron las pasadas de una silla.
+
+    También avisa cuando no hay acciones para deshacer, cuando no hay
+    otro robot con movimientos y cuando el turno cambia automáticamente
+    por agotarse los pasos. Estos mensajes ayudan a entender las reglas
+    sin necesitar una explicación externa.

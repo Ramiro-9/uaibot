@@ -29,6 +29,7 @@
 # integrarse, por más luz y sombra que se les aplicara.
 
 import arcade
+from recursos_audio import cargar_sonido
 
 import guardado
 import sprites as spr
@@ -87,7 +88,7 @@ class Menu(arcade.View):
             for i in range(cantidad)
         ]
 
-        self.musica = arcade.load_sound("assets/audio/MenuMusic.wav")
+        self.musica = cargar_sonido("assets/audio/MenuMusic.wav")
 
     # ── Textos ────────────────────────────────────────────────────────────────
     def _crear_textos(self):
@@ -294,7 +295,7 @@ class Menu(arcade.View):
         """Abre el Inventario: la familia con sus habilidades y
         los objetos coleccionables del Multijugador con su descripción.
         La música del menú sigue sonando (como en el Placeholder)."""
-        self.window.show_view(Inventario())
+        self.window.show_view(Inventario(menu_anterior=self))
 
     # ── Dibujo ────────────────────────────────────────────────────────────────
     def on_draw(self):
@@ -374,9 +375,11 @@ class Inventario(arcade.View):
     sección, ESC vuelve al menú. La música del menú sigue sonando, como en
     el Placeholder."""
 
-    def __init__(self):
+    def __init__(self, menu_anterior=None):
         """Carga los retratos de la familia y las imágenes de los objetos."""
         super().__init__()
+        # Conservar el menú evita recargar música, imágenes y textos al volver.
+        self.menu_anterior = menu_anterior
         self.seccion       = 0    # 0 = personajes, 1 = objetos
         self.sel_personaje = 0
         self.sel_objeto    = 0
@@ -395,7 +398,9 @@ class Inventario(arcade.View):
     def on_key_press(self, symbol, modifiers):
         """Cambia de sección con arriba/abajo y de ítem con izquierda/derecha."""
         if symbol == arcade.key.ESCAPE:
-            self.window.show_view(Menu())
+            if self.menu_anterior is None:
+                self.menu_anterior = Menu()
+            self.window.show_view(self.menu_anterior)
         elif symbol == arcade.key.UP:
             self.seccion = (self.seccion - 1) % 2
         elif symbol == arcade.key.DOWN:

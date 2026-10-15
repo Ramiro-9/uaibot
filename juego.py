@@ -33,6 +33,7 @@
 # el código de animación sin necesidad.
 
 import arcade
+from recursos_audio import cargar_sonido
 import random
 import guardado
 import nivel as nivel_mod
@@ -472,10 +473,10 @@ class Juego(arcade.View):
         self.velocidad_frame = 8   # frames de juego entre cada frame de animación
 
         # Sonidos de acción
-        self.snd_mover    = arcade.load_sound("assets/audio/Moverse.wav")
-        self.snd_no_mover = arcade.load_sound("assets/audio/NoMoverse.wav")
-        self.snd_victoria = arcade.load_sound("assets/audio/CompletedLevel.wav")
-        self.musica       = arcade.load_sound("assets/audio/GameLevelMusic.wav")
+        self.snd_mover    = cargar_sonido("assets/audio/Moverse.wav")
+        self.snd_no_mover = cargar_sonido("assets/audio/NoMoverse.wav")
+        self.snd_victoria = cargar_sonido("assets/audio/CompletedLevel.wav")
+        self.musica       = cargar_sonido("assets/audio/GameLevelMusic.wav")
 
         # Ítems de donación (Modo Viaje) y objetos coleccionables
         # (Multijugador): estáticos, un PNG por tipo/id. Van en el mismo

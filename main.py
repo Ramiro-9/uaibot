@@ -15,8 +15,8 @@ def main():
     ventana.musica_player = None
 
     # Mostrar el menú principal como primera vista
-    menu = Menu()
-    ventana.show_view(menu)
+    # La ventana conserva la vista activa; no retener el menú inicial aquí.
+    ventana.show_view(Menu())
     arcade.run()
 
 if __name__ == "__main__":

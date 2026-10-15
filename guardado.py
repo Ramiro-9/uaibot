@@ -17,6 +17,7 @@
 # no se usa.
 
 import json
+import math
 import os
 import time
 
@@ -169,8 +170,43 @@ def registrar_puntaje_tutorial(nombre, tiempo_segundos):
     consigna pide explícitamente un .txt, y no tiene sentido mezclar un
     historial de partidas (que solo crece) con el estado de configuración
     de una sola partida en curso que sí se sobrescribe."""
-    nombre = nombre.strip() or "Jugador"
+    # El formato conserva los puntajes anteriores. Cada partida terminada
+    # cuenta como una participación; los empates comparten puesto (1, 1, 3).
+    puntajes = leer_puntajes_tutorial()
+    tiempo = float(f"{tiempo_segundos:.1f}")
+    if not math.isfinite(tiempo) or tiempo < 0:
+        raise ValueError("El tiempo debe ser finito y no negativo")
+    nombre = " ".join(nombre.replace("|", " ").split()) or "Jugador"
     marca_tiempo = time.strftime("%Y-%m-%d %H:%M")
     linea = f"{marca_tiempo} | {nombre} | {tiempo_segundos:.1f}s\n"
     with open(ARCHIVO_PUNTAJES_TUTORIAL, "a", encoding="utf-8") as f:
         f.write(linea)
+    puntajes.append({"nombre": nombre, "tiempo": tiempo})
+    puntajes.sort(key=lambda puntaje: puntaje["tiempo"])
+    puesto = 1 + sum(p["tiempo"] < tiempo for p in puntajes)
+    return puesto, len(puntajes)
+
+
+def leer_puntajes_tutorial():
+    """Lee resultados válidos del formato fecha | nombre | segundos.
+
+    Ignora líneas dañadas, sin borrar el archivo, y ordena de menor a mayor.
+    Un archivo todavía inexistente equivale a un ranking vacío.
+    """
+    try:
+        with open(ARCHIVO_PUNTAJES_TUTORIAL, encoding="utf-8") as archivo:
+            lineas = archivo.readlines()
+    except FileNotFoundError:
+        return []
+    puntajes = []
+    for linea in lineas:
+        partes = linea.strip().split(" | ")
+        if len(partes) != 3:
+            continue
+        try:
+            tiempo = float(partes[2].removesuffix("s"))
+        except ValueError:
+            continue
+        if math.isfinite(tiempo) and tiempo >= 0:
+            puntajes.append({"nombre": partes[1], "tiempo": tiempo})
+    return sorted(puntajes, key=lambda puntaje: puntaje["tiempo"])
