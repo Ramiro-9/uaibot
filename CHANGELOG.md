@@ -357,3 +357,18 @@ Primeras pruebas del proyecto; antes el Multijugador solo se probaba a mano con 
 ### Limpieza
 
 - Se borran `nubes_anim.png`, `pajaros_anim.png`, `luciernagas_anim.png` (animaciones descartadas del fondo del menú) y `muro.png` (sin referencias desde antes de Ronda 2).
+
+## [1.6.1] — 2026-10-15
+
+### Consigna sorpresa: replay en Tutorial
+
+- Incorporado un botón REPLAY y el acceso mediante la tecla P.
+- Registro automático de acciones en `replay_tutorial.txt`.
+- Reproducción desde el archivo, con intervalos de 0,5 segundos.
+- Incluye movimientos, cambios de personaje, roturas de paredes
+  y deshacer con Z, incluso después de quedarse sin movimientos.
+- Regreso a la partida original mediante P o Escape.
+- Reutilización de las texturas y sonidos cargados.
+- Protección contra la escritura de acciones y puntajes durante
+  la reproducción.
+- Ajustado el panel lateral para incorporar el botón.

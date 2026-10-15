@@ -222,3 +222,21 @@ git push
 Ver `revision_refactor_uaibot.md` para el detalle de puntos de
 refactorización identificados (prioridad: blindar `_generar_llave`
 contra mapas sin celdas libres, centralizar el hitbox del menú).
+
+### Replay en Tutorial
+
+Presioná P o hacé clic en el botón REPLAY para reproducir las
+acciones de la partida desde el comienzo.
+
+- Las acciones se guardan automáticamente en `replay_tutorial.txt`.
+- Al iniciar el replay se lee ese archivo y se ejecuta una acción
+  cada 0,5 segundos.
+- Se reproducen movimientos, cambios de personaje, roturas de
+  paredes y acciones de deshacer.
+- P o Escape permiten regresar a la partida original, conservando
+  su estado.
+- La reproducción no registra nuevos puntajes ni modifica el archivo.
+- Reiniciar con R o entrar nuevamente al Tutorial inicia un registro nuevo.
+
+Mientras se ingresa el nombre al ganar, se puede usar el botón
+REPLAY o confirmar el nombre con Enter antes de presionar P.

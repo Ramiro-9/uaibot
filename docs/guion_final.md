@@ -1,17 +1,10 @@
-Nuestro proyecto se llama UAIBOT y está desarrollado en Python con la biblioteca Arcade. Es un videojuego pensado para estudiantes de primaria, que combina desafíos de recorrido con una misión solidaria: reunir donaciones y llegar al merendero.
-
-El jugador debe planificar sus movimientos, administrar los pasos de los robots y cumplir las reglas de recolección. Buscamos que aprenda a resolver problemas y a reconocer cómo distintas capacidades pueden complementarse.
-
-Organizamos el juego en cuatro modos: Tutorial, Viaje, Infinito y Multijugador cooperativo. En Tutorial concentramos las consignas del desafío, para que puedan comprobarse en un solo nivel.
-
-La lógica trabaja con una grilla: antes de aceptar un movimiento, comprueba los límites, las paredes y el camino recorrido. Para deshacer, guardamos el estado anterior de cada acción. Así podemos recuperar la posición, los recursos y los movimientos, e incluso reconstruir una pared destruida.
-
-En esta ronda incorporamos el alto contraste con negro, amarillo y blanco, nombres dentro de las celdas y bordes más gruesos. También agregamos el ranking por tiempo y la posibilidad de romper paredes gastando dos movimientos.
-
-Como extra, desarrollamos una guía que enseña mientras se juega y mensajes que explican por qué una acción no está permitida.
-
-También optimizamos el rendimiento, evitando cargar repetidamente los mismos sonidos para reducir los picos de memoria y las interrupciones del audio.
-
-Utilizamos inteligencia artificial como apoyo para programación y recursos, documentando los pedidos y revisando los resultados antes de incorporarlos.
-
-Con UAIBOT buscamos unir estrategia, cooperación y accesibilidad en una experiencia que permita aprender jugando.
+Buenos días. Mi proyecto es UAIBOT, un juego desarrollado en Python con Arcade, donde debemos llegar al merendero recolectando recursos y planificando el recorrido.
+La base lógica es una grilla. Antes de mover al personaje, el programa valida los límites, las paredes y las celdas ya visitadas. Después actualiza los pasos y las recolecciones.
+En Tutorial concentré las consignas. Uno de sus puntos fuertes es deshacer: antes de cada acción guardo el estado del nivel en una pila. Al presionar Z, recupero la posición, los recursos, los movimientos disponibles y las paredes.
+Para la consigna sorpresa agregué replay con P. Las acciones se guardan en un archivo de texto, incluidos los deshacer. Al reproducir, se lee ese archivo y se ejecuta una acción cada medio segundo, utilizando las mismas funciones del juego y conservando la partida original.
+Los extras también tienen decisiones de programación detrás.
+En Infinito, los mapas se generan proceduralmente y utilizo una búsqueda en anchura, o BFS, para comprobar que exista un camino entre el inicio y la meta.
+En Viaje, los escenarios están diseñados en Tiled. Este modo hereda la lógica común de Juego y adapta la carga de niveles y la progresión. Eso permite ampliar el proyecto sin duplicar todo el código.
+El multijugador por red local incorpora comunicación mediante sockets. La lectura de mensajes funciona en un hilo separado, para que esperar información del otro jugador no congele la pantalla.
+También trabajé en el rendimiento: reutilizo texturas y sonidos, y agrupo los elementos gráficos para reducir el trabajo de dibujo. Esto ayudó a corregir las cargas repetidas y los cortes de audio al navegar por los menús.
+Finalmente, el alto contraste y la guía integrada facilitan comprender el juego. Mi objetivo fue combinar las consignas con una estructura que pudiera crecer y seguir funcionando de forma fluida.
